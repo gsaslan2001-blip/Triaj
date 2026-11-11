@@ -43,56 +43,26 @@ export const INITIAL_SYSTEM_PARAMETERS: SystemParameters = {
   errorWeights: { ...DEFAULT_ERROR_WEIGHTS }
 };
 
-export const INITIAL_MOCK_EXAMS: MockExamRecord[] = [
-  evaluateMockExam(
-    'DENEME-01',
-    '2026-02-15',
-    'DUSDATA Türkiye Geneli TG-1',
-    {
-      B01: 3.75, B02: 2.5, B03: 2.75, B04: 3.5, B05: 4.0, B06: 2.5, B07: 3.75, B08: 2.75,
-      B09: 7.5, B10: 7.25, B11: 6.5, B12: 6.0, B13: 6.75, B14: 7.0, B15: 6.75, B16: 6.25
-    },
-    108.0,
-    100.0,
-    'Bazal kalibrasyon denemesi. Ortodonti ankraj ve Biyokimya metabolizma üniteleri T+3 kuyruğuna alındı.'
-  ),
-  evaluateMockExam(
-    'DENEME-02',
-    '2026-03-01',
-    'DUSTIME Kurumsal Deneme-2',
-    {
-      B01: 4.25, B02: 3.0, B03: 3.0, B04: 4.0, B05: 4.5, B06: 3.0, B07: 4.25, B08: 3.0,
-      B09: 8.25, B10: 8.0, B11: 7.5, B12: 6.75, B13: 7.5, B14: 7.75, B15: 7.5, B16: 7.0
-    },
-    108.0,
-    100.0,
-    'Klinik bilimler +8.25 net artış gösterdi. Cerrahi ve Endodonti vaka sorularında hız 52 sn/soruya indi.'
-  ),
-  evaluateMockExam(
-    'DENEME-03',
-    '2026-03-18',
-    'DUSDATA Türkiye Geneli TG-2',
-    {
-      B01: 4.75, B02: 3.25, B03: 3.25, B04: 4.5, B05: 4.75, B06: 3.25, B07: 4.75, B08: 3.5,
-      B09: 8.75, B10: 8.5, B11: 8.25, B12: 7.5, B13: 8.0, B14: 8.5, B15: 8.25, B16: 7.75
-    },
-    108.0,
-    100.0,
-    '97.50 toplam net. ADÇC 100 barajına 2.5 net kaldı. Perio 2017 sınıflaması Yeşil Kovaya taburcu edildi.'
-  ),
-  evaluateMockExam(
-    'DENEME-04',
-    '2026-04-04',
-    'ÖSYM Birebir Prova — Stratejik Kamp Denemesi',
-    {
-      B01: 5.25, B02: 3.5, B03: 3.5, B04: 4.75, B05: 5.0, B06: 3.5, B07: 5.0, B08: 3.75,
-      B09: 9.25, B10: 9.0, B11: 8.75, B12: 8.25, B13: 8.5, B14: 9.0, B15: 8.75, B16: 8.25
-    },
-    108.0,
-    100.0,
-    '104.00 Net ile ADÇC ELİT Barajı (100+) aşıldı! Kalan 4.0 netlik fark için SWSPS yüksek hatalara odaklanılıyor.'
-  )
-];
+export const DEMO_SEED_IDS = {
+  MOCK_EXAMS: new Set(['DENEME-01', 'DENEME-02', 'DENEME-03', 'DENEME-04']),
+  SEMANTIC_ERRORS: new Set(['ERR-01', 'ERR-02', 'ERR-03', 'ERR-04', 'ERR-05']),
+  QUESTION_LOGS: new Set(['LOG-01', 'LOG-02', 'LOG-03', 'LOG-04', 'LOG-05', 'LOG-06']),
+  TRIAGE_LOGS: new Set([
+    'log-seed-green-b16',
+    'log-seed-yellow-b14',
+    'log-seed-red-b05',
+    'log-seed-1',
+    'log-seed-2'
+  ]),
+  DEMO_TOPIC_IDS_AND_DATES: new Map<string, string>([
+    ['unit-b14-05', '2026-11-05'],
+    ['unit-b16-10', '2026-11-02'],
+    ['unit-b05-04', '2026-11-07'],
+    ['unit-b04-01', '2026-11-07']
+  ])
+};
+
+export const INITIAL_MOCK_EXAMS: MockExamRecord[] = [];
 
 export const INITIAL_TOPIC_TAXONOMY: TopicTaxonomyItem[] = [
   // TEMEL BİLİMLER (B01..B08) — Kanonik DUS Ağırlığı: 0.4 (Ünite Bazlı Ağırlık: Daha Sonra Eklenecek)
@@ -117,229 +87,9 @@ export const INITIAL_TOPIC_TAXONOMY: TopicTaxonomyItem[] = [
   { id: 'KM-17', branchCode: 'B16', branchName: 'Protetik Diş Tedavisi', category: 'KLINIK_BILIMLER', mainTopic: 'Hareketli Bölümlü Protez Planlaması', subtopic: 'Kennedy Sınıflaması, Kroşe Biyomekaniği ve İndirekt Tutucular', semanticCode: 'PROT_KENNEDY_01', dusWeight: 0.6, unitWeight: null, fsrsStabilityS: 11.8, fsrsDifficultyD: 8.8, fsrsRetrievabilityR: 68 }
 ];
 
-export const INITIAL_SEMANTIC_ERRORS: SemanticErrorRecord[] = [
-  {
-    id: 'ERR-01',
-    date: '2026-04-06',
-    source: 'ÖSYM Birebir Prova Denemesi',
-    branchCode: 'B16',
-    branchName: 'Protetik Diş Tedavisi',
-    semanticCode: 'PROT_KENNEDY_01',
-    subtopic: 'Kennedy Sınıf I-II İndirekt Tutucu Konumlandırması',
-    questionSummary: 'Serbest sonlu HBP vakasında fulkrum hattına dik çizilen indirekt tutucu desteğinin kanin yerine 1. premolara konulması tuzağı.',
-    errorType: 'Çeldirici',
-    distractorAnalysis: 'Mesial oklüzal tırnak ile fulkrum hattı eksenini ters yorumladım; en uzak mezial fossa seçilmeliydi.',
-    ankiClozeStatus: 'Bekliyor',
-    ankiClozeText: 'Kennedy Sınıf I ve II vakalarında {{c1::indirekt tutucu}}, terminal dayanaklardan geçen {{c2::fulkrum hattının}} mümkün olduğunca önüne ve dik açıyla yerleştirilir.',
-    swspsScore: calculateSWSPS({
-      errorType: 'Çeldirici',
-      repeatCount: 3,
-      difficultyD: 8.8,
-      fsrsRetrievabilityR: 68,
-      daysElapsed: 2
-    }),
-    mockExamId: 'DENEME-04'
-  },
-  {
-    id: 'ERR-02',
-    date: '2026-04-05',
-    source: 'DUSDATA Vaka Kitabı',
-    branchCode: 'B12',
-    branchName: 'Ortodonti',
-    semanticCode: 'ORTO_CEPH_01',
-    subtopic: 'Kontrollü vs Kontrolsüz Devrilme (M/F Oranı)',
-    questionSummary: 'Moment/Kuvvet oranı 8:1 verildiğinde direnç merkezinin apeks hizasında kalacağı (kontrollü devrilme) yerine gövdesel hareket (10:1) seçilmesi.',
-    errorType: 'Muhakeme',
-    distractorAnalysis: '8:1 (Kontrollü Devrilme) ile 10:1 (Translasyon/Gövdesel) ve 12:1 (Kök Torku) eşiklerini hız baskısıyla karıştırdım.',
-    ankiClozeStatus: 'Bekliyor',
-    ankiClozeText: 'Ortodontik M/F oranlarında: {{c1::5:1 Kontrolsüz Devrilme}}, {{c2::8:1 Kontrollü Devrilme (apeks sabit)}}, {{c3::10:1 Gövdesel Hareket (Translasyon)}}, {{c4::12:1 Tork (Kök hareketi)}} oluşturur.',
-    swspsScore: calculateSWSPS({
-      errorType: 'Muhakeme',
-      repeatCount: 2,
-      difficultyD: 8.9,
-      fsrsRetrievabilityR: 64,
-      daysElapsed: 3
-    }),
-    mockExamId: 'DENEME-04'
-  },
-  {
-    id: 'ERR-03',
-    date: '2026-04-04',
-    source: 'ÖSYM Birebir Prova Denemesi',
-    branchCode: 'B09',
-    branchName: 'Ağız, Diş ve Çene Cerrahisi',
-    semanticCode: 'ADCC_CYST_02',
-    subtopic: 'Odontojenik Keratokist (OKK) Nüks Mekanizması ve Carnoy Solüsyonu',
-    questionSummary: 'OKK nüks nedenleri arasında "kalın fibröz kapsül" şıkkına düşülmesi (OKK kapsülü ince ve frajildir + satellit kistler içerir).',
-    errorType: 'Çeldirici',
-    distractorAnalysis: 'Kapsülün ince/frajil olması yerine kalın olduğu çeldiricisini doğru kabul ettim.',
-    ankiClozeStatus: 'Eklendi',
-    ankiClozeText: 'Odontojenik Keratokist (OKK) {{c1::PTCH1}} gen mutasyonu gösterir; {{c2::ince, frajil fibröz kapsülü}} ve bağ dokusundaki {{c3::kız (satellit) kistler}} nedeniyle yüksek nüks (%30+) oranına sahiptir.',
-    swspsScore: calculateSWSPS({
-      errorType: 'Çeldirici',
-      repeatCount: 2,
-      difficultyD: 8.4,
-      fsrsRetrievabilityR: 74,
-      daysElapsed: 4
-    }),
-    mockExamId: 'DENEME-04'
-  },
-  {
-    id: 'ERR-04',
-    date: '2026-04-02',
-    source: 'DUSBANKASI AI Motoru',
-    branchCode: 'B01',
-    branchName: 'Anatomi',
-    semanticCode: 'ANAT_CRANIAL_05',
-    subtopic: 'Foramen Ovale vs Foramen Spinosum İçeriği',
-    questionSummary: 'A. meningea media\'nın geçtiği oluşum sorusunda Foramen ovale (MALE: Mandibularis, Accessorius meningeus, Lesser petrosal, Emissary) işaretlenmesi.',
-    errorType: 'Bilgi',
-    distractorAnalysis: 'A. meningea media (Foramen spinosum) ile A. meningea accessoria (Foramen ovale) ayrımı karıştı.',
-    ankiClozeStatus: 'Eklendi',
-    ankiClozeText: '{{c1::A. meningea media}} kraniuma {{c2::Foramen spinosum}} içinden girerken; {{c3::A. meningea accessoria ve N. mandibularis (V3)}} {{c4::Foramen ovale}} içinden geçer.',
-    swspsScore: calculateSWSPS({
-      errorType: 'Bilgi',
-      repeatCount: 2,
-      difficultyD: 8.3,
-      fsrsRetrievabilityR: 72,
-      daysElapsed: 6
-    }),
-    mockExamId: 'DENEME-03'
-  },
-  {
-    id: 'ERR-05',
-    date: '2026-03-30',
-    source: 'TTS Çıkmış Sorular',
-    branchCode: 'B06',
-    branchName: 'Tıbbi Patoloji',
-    semanticCode: 'PAT_SALIVARY_01',
-    subtopic: 'Mukoepidermoid Karsinom CRTC1-MAML2 Translokasyonu',
-    questionSummary: 'En sık malign tükürük bezi tümörü olan Mukoepidermoid Karsinomun t(11;19) CRTC1-MAML2 füzyon genini Adenoid Kistik Karsinom (MYB-NFIB) ile karıştırma.',
-    errorType: 'Bilgi',
-    distractorAnalysis: 'Mukoepidermoid = MAML2, Adenoid Kistik = MYB-NFIB (İsviçre peyniri / perinöral invazyon) kodlaması pekiştirildi.',
-    ankiClozeStatus: 'Eklendi',
-    ankiClozeText: 'Mukoepidermoid karsinom {{c1::t(11;19) CRTC1-MAML2}} translokasyonu taşırken; perinöral invazyon şampiyonu Adenoid Kistik Karsinom {{c2::MYB-NFIB}} füzyonu gösterir.',
-    swspsScore: calculateSWSPS({
-      errorType: 'Bilgi',
-      repeatCount: 1,
-      difficultyD: 8.5,
-      fsrsRetrievabilityR: 71,
-      daysElapsed: 9
-    }),
-    mockExamId: 'DENEME-03'
-  }
-];
+export const INITIAL_SEMANTIC_ERRORS: SemanticErrorRecord[] = [];
 
-export const INITIAL_DAILY_QUESTION_LOGS: DailyStudyQuestionLog[] = [
-  {
-    id: 'LOG-01',
-    date: '2026-04-08',
-    sourceBook: 'DUSBANKASI AI Motoru',
-    branchCode: 'B09',
-    branchName: 'Ağız, Diş ve Çene Cerrahisi',
-    semanticCode: 'ADCC_IMPACT_01',
-    questionFormat: 'Klinik Vaka / Senaryo',
-    totalQuestions: 40,
-    correct: 37,
-    wrong: 3,
-    empty: 0,
-    net: 36.25,
-    accuracyPercent: 92.5,
-    durationMinutes: 33,
-    speedSecondsPerQuestion: 49.5,
-    notes: 'T+3 40 soruluk esas geri çağırma testi. Elit hız (<50 sn/soru) yakalandı.'
-  },
-  {
-    id: 'LOG-02',
-    date: '2026-04-07',
-    sourceBook: 'DUSDATA Soru Bankası',
-    branchCode: 'B14',
-    branchName: 'Endodonti',
-    semanticCode: 'ENDO_IRRIG_01',
-    questionFormat: 'Öncüllü / Ayrım Sorusu',
-    totalQuestions: 40,
-    correct: 36,
-    wrong: 4,
-    empty: 0,
-    net: 35.0,
-    accuracyPercent: 90.0,
-    durationMinutes: 36,
-    speedSecondsPerQuestion: 54.0,
-    notes: 'İrrigasyon etkileşimleri ve NaOCl kazaları. Yeşil Kovaya taburcu edildi.'
-  },
-  {
-    id: 'LOG-03',
-    date: '2026-04-06',
-    sourceBook: 'TTS Çıkmış Sorular',
-    branchCode: 'B11',
-    branchName: 'Periodontoloji',
-    semanticCode: 'PERIO_CLASS_17',
-    questionFormat: 'ÖSYM Çıkmış Sorular',
-    totalQuestions: 50,
-    correct: 45,
-    wrong: 5,
-    empty: 0,
-    net: 43.75,
-    accuracyPercent: 90.0,
-    durationMinutes: 42,
-    speedSecondsPerQuestion: 50.4,
-    notes: '2012-2025 ÖSYM Perio çıkmış sorular taraması.'
-  },
-  {
-    id: 'LOG-04',
-    date: '2026-04-05',
-    sourceBook: 'DUSDATA Vaka Kitabı',
-    branchCode: 'B16',
-    branchName: 'Protetik Diş Tedavisi',
-    semanticCode: 'PROT_KENNEDY_01',
-    questionFormat: 'Komplikasyon Yönetimi',
-    totalQuestions: 30,
-    correct: 23,
-    wrong: 7,
-    empty: 0,
-    net: 21.25,
-    accuracyPercent: 76.7,
-    durationMinutes: 32,
-    speedSecondsPerQuestion: 64.0,
-    notes: 'Kennedy Sınıf I biyomekaniği. Hız 60 sn üstüne çıktı, T+14 doğrulamasına alındı.'
-  },
-  {
-    id: 'LOG-05',
-    date: '2026-04-04',
-    sourceBook: 'DUSBANKASI AI Motoru',
-    branchCode: 'B01',
-    branchName: 'Anatomi',
-    semanticCode: 'ANAT_CRANIAL_05',
-    questionFormat: 'Spot / Bilgi Sorusu',
-    totalQuestions: 40,
-    correct: 34,
-    wrong: 6,
-    empty: 0,
-    net: 32.5,
-    accuracyPercent: 85.0,
-    durationMinutes: 31,
-    speedSecondsPerQuestion: 46.5,
-    notes: 'Fossa pterygopalatina ve kafa çiftleri spot taraması.'
-  },
-  {
-    id: 'LOG-06',
-    date: '2026-04-03',
-    sourceBook: 'DUSDATA Soru Bankası',
-    branchCode: 'B07',
-    branchName: 'Tıbbi Farmakoloji',
-    semanticCode: 'FARM_LOCAL_01',
-    questionFormat: 'Spot / Bilgi Sorusu',
-    totalQuestions: 40,
-    correct: 37,
-    wrong: 3,
-    empty: 0,
-    net: 36.25,
-    accuracyPercent: 92.5,
-    durationMinutes: 34,
-    speedSecondsPerQuestion: 51.0,
-    notes: 'Lokal anestezikler ve AHA endokardit profilaksisi.'
-  }
-];
+export const INITIAL_DAILY_QUESTION_LOGS: DailyStudyQuestionLog[] = [];
 
 export const INITIAL_ANKI_FSRS_SNAPSHOT: AnkiFsrsSnapshot = {
   lastSyncDate: '2026-04-08',

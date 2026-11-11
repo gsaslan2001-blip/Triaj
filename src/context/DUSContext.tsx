@@ -27,6 +27,7 @@ import {
   STORAGE_KEYS
 } from '../data/dusDatabase';
 import {
+  DEMO_SEED_IDS,
   EXTENDED_STORAGE_KEYS,
   INITIAL_MOCK_EXAMS,
   INITIAL_SEMANTIC_ERRORS,
@@ -63,6 +64,9 @@ import {
   signOutFromCloud,
   saveCloudWorkspace,
   parseFirestoreWorkspaceDoc,
+  computeWorkspaceFingerprint,
+  isLegacyDemoTopicState,
+  resetTopicToCleanDefault,
   handleFirestoreError,
   OperationType,
   User
@@ -196,68 +200,7 @@ function playGentleChime() {
   }
 }
 
-const DEFAULT_SEED_TRIAGE_LOGS: TriageRecord[] = [
-  {
-    id: 'log-seed-green-b16',
-    recordCode: 'TEKRAR-0001',
-    topicId: 'unit-b16-10',
-    subjectId: 'B16',
-    topicTitle: '10 DENTAL AMALGAM',
-    subjectName: 'Restoratif Diş Tedavisi',
-    date: '2026-11-05',
-    stage: 'T3_MAIN',
-    correct: 36,
-    wrong: 4,
-    empty: 0,
-    total: 40,
-    percentage: 90,
-    resultingBucket: 'GREEN',
-    resultingPriority: 'P4_LOW',
-    clinicalDiagnosis: 'Araya 3 tam gün girmesine rağmen şema neokortekste sağlam (≥%85).',
-    recommendedAction: 'HİÇBİR GÖREV EKLENMEZ (Taburcu!).',
-    validationStatus: 'Geçerli'
-  },
-  {
-    id: 'log-seed-yellow-b14',
-    recordCode: 'TEKRAR-0002',
-    topicId: 'unit-b14-05',
-    subjectId: 'B14',
-    topicTitle: '5- PERİODONTİTİS',
-    subjectName: 'Periodontoloji',
-    date: '2026-11-08',
-    stage: 'T3_MAIN',
-    correct: 30,
-    wrong: 10,
-    empty: 0,
-    total: 40,
-    percentage: 75,
-    resultingBucket: 'YELLOW',
-    resultingPriority: 'P2_HIGH',
-    clinicalDiagnosis: 'Sarı Kova (%75). Evre III-IV ayrımı 3 günde erimiş.',
-    recommendedAction: 'T+14 gününe (2026-11-22) 2. Bankadan 20 soru doğrulama atandı.',
-    validationStatus: 'Geçerli'
-  },
-  {
-    id: 'log-seed-red-b05',
-    recordCode: 'TEKRAR-0003',
-    topicId: 'unit-b05-04',
-    subjectId: 'B05',
-    topicTitle: '4 virüsler',
-    subjectName: 'Tıbbi Mikrobiyoloji',
-    date: '2026-11-10',
-    stage: 'T3_MAIN',
-    correct: 24,
-    wrong: 16,
-    empty: 0,
-    total: 40,
-    percentage: 60,
-    resultingBucket: 'RED',
-    resultingPriority: 'P1_CRITICAL',
-    clinicalDiagnosis: 'Kırmızı Kova (%60). Virüs reseptör eşleşmeleri sınavda karıştı.',
-    recommendedAction: 'Cumartesi Kova Onarım Bloğuna (2026-11-14) 25 dk Boş Kağıt + 30 soru atandı.',
-    validationStatus: 'Geçerli'
-  }
-];
+const DEFAULT_SEED_TRIAGE_LOGS: TriageRecord[] = [];
 
 export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [todayStr] = useState<string>(getTodayString());
@@ -273,7 +216,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Subjects
   const [subjects] = useState<DUSSubject[]>(CANONICAL_DUS_SUBJECTS);
 
-  // Topics (with K0001..K0227 code enrichment & half-cleared task normalization)
+  // Topics (with K0001..K0227 code enrichment, demo task purge & half-cleared task normalization)
   const [topics, setTopics] = useState<TopicUnit[]>(() => {
     let rawTopics = INITIAL_TOPIC_UNITS;
     try {
@@ -283,30 +226,17 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage topics error', e);
     }
     return rawTopics.map((t, idx) => {
+      if (isLegacyDemoTopicState(t)) {
+        return resetTopicToCleanDefault(t, idx);
+      }
+
       const topicCode = t.topicCode || `K${String(idx + 1).padStart(4, '0')}`;
       const isGreenOrDischarged = t.discharged || t.currentBucket === 'GREEN';
       const hasScheduledTarget = Boolean(t.t3DueDate || t.t14DueDate || t.saturdayRepairDate);
 
       // Eğer ünite mezun değilse ve planlı tarihi silinmişse (yarım kalmış silme durumu), kova ve statüsünü de sıfırla
       if (!isGreenOrDischarged && !hasScheduledTarget && (t.status !== 'NOT_STARTED' || t.currentBucket !== 'NONE')) {
-        return {
-          ...t,
-          topicCode,
-          status: 'NOT_STARTED',
-          currentBucket: 'NONE',
-          priority: 'P3_MEDIUM',
-          discharged: false,
-          t0Date: undefined,
-          t3DueDate: undefined,
-          t14DueDate: undefined,
-          saturdayRepairDate: undefined,
-          lastStudiedDate: undefined,
-          t0Score: undefined,
-          t3Score: undefined,
-          t14Score: undefined,
-          repairScore: undefined,
-          reviewCount: 0
-        };
+        return resetTopicToCleanDefault(t, idx);
       }
 
       return {
@@ -320,16 +250,12 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Triage History / Audit Logs (Tekrar_Kaydi — aktif ünite durumlarıyla senkronize)
   const [triageLogs, setTriageLogs] = useState<TriageRecord[]>(() => {
-    let initialLogs = DEFAULT_SEED_TRIAGE_LOGS;
+    let initialLogs: TriageRecord[] = [];
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TRIAGE_LOGS);
       if (saved) {
         const parsed = JSON.parse(saved) as TriageRecord[];
-        // Eski uyumsuz seed kayıtlarını (unit-b01-01, unit-b15-03) temizle
-        const filteredLegacy = parsed.filter(
-          l => l.id !== 'log-seed-1' && l.id !== 'log-seed-2'
-        );
-        initialLogs = filteredLegacy.length > 0 ? filteredLegacy : DEFAULT_SEED_TRIAGE_LOGS;
+        initialLogs = parsed.filter(l => !DEMO_SEED_IDS.TRIAGE_LOGS.has(l.id));
       }
     } catch (e) {
       console.warn('LocalStorage triage logs error', e);
@@ -360,11 +286,16 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_SYSTEM_PARAMETERS;
   });
 
-  // Mock Exams (Deneme_Analiz)
+  // Mock Exams (Deneme_Analiz — eski demo kayıtları otomatik temizlenir)
   const [mockExams, setMockExams] = useState<MockExamRecord[]>(() => {
     try {
       const saved = localStorage.getItem(EXTENDED_STORAGE_KEYS.MOCK_EXAMS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as MockExamRecord[];
+        return Array.isArray(parsed)
+          ? parsed.filter(m => !DEMO_SEED_IDS.MOCK_EXAMS.has(m.id))
+          : [];
+      }
     } catch {
       // ignore
     }
@@ -409,22 +340,32 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_TOPIC_TAXONOMY;
   });
 
-  // Semantic Errors (Semantik_Hata_Analizi)
+  // Semantic Errors (Semantik_Hata_Analizi — eski demo hataları otomatik temizlenir)
   const [semanticErrors, setSemanticErrors] = useState<SemanticErrorRecord[]>(() => {
     try {
       const saved = localStorage.getItem(EXTENDED_STORAGE_KEYS.SEMANTIC_ERRORS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as SemanticErrorRecord[];
+        return Array.isArray(parsed)
+          ? parsed.filter(e => !DEMO_SEED_IDS.SEMANTIC_ERRORS.has(e.id))
+          : [];
+      }
     } catch {
       // ignore
     }
     return INITIAL_SEMANTIC_ERRORS;
   });
 
-  // Daily Question & Speed Logs (Gunluk_Log & Soru_Bankasi_Metrikleri)
+  // Daily Question & Speed Logs (Gunluk_Log — eski demo logları otomatik temizlenir)
   const [questionLogs, setQuestionLogs] = useState<DailyStudyQuestionLog[]>(() => {
     try {
       const saved = localStorage.getItem(EXTENDED_STORAGE_KEYS.QUESTION_LOGS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as DailyStudyQuestionLog[];
+        return Array.isArray(parsed)
+          ? parsed.filter(q => !DEMO_SEED_IDS.QUESTION_LOGS.has(q.id))
+          : [];
+      }
     } catch {
       // ignore
     }
@@ -536,7 +477,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isCloudHydratedRef = useRef<boolean>(false);
   const hasRemoteDocRef = useRef<boolean>(false);
-  const suppressNextCloudWriteRef = useRef<boolean>(false);
+  const isSavingToCloudRef = useRef<boolean>(false);
+  const lastSyncedFingerprintRef = useRef<string>('');
   const latestSnapshotRef = useRef({
     studyDate: todayStr,
     streakDays: 14,
@@ -585,6 +527,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!user) {
         isCloudHydratedRef.current = false;
         hasRemoteDocRef.current = false;
+        lastSyncedFingerprintRef.current = '';
         setCloudSyncStatus('OFFLINE');
       } else {
         setCloudSyncStatus('CONNECTING');
@@ -605,15 +548,22 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!snapshot.exists()) {
           // Bulutta henüz kayıt yoksa mevcut cihazdaki verileri buluta yükle
           hasRemoteDocRef.current = false;
+          const initialFingerprint = computeWorkspaceFingerprint(latestSnapshotRef.current);
+          lastSyncedFingerprintRef.current = initialFingerprint;
           isCloudHydratedRef.current = true;
+          isSavingToCloudRef.current = true;
           setCloudSyncStatus('SYNCING');
           saveCloudWorkspace(cloudUser.uid, latestSnapshotRef.current, false)
             .then(() => {
               hasRemoteDocRef.current = true;
+              isSavingToCloudRef.current = false;
               setCloudSyncStatus('SYNCED');
-              setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+              setLastCloudSyncedAt(
+                new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+              );
             })
             .catch(() => {
+              isSavingToCloudRef.current = false;
               setCloudSyncStatus('ERROR');
             });
           return;
@@ -621,14 +571,30 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         hasRemoteDocRef.current = true;
 
-        // Kendi bekleyen yazma işlemimiz ise yerel state'i ezme
-        if (snapshot.metadata.hasPendingWrites && isCloudHydratedRef.current) {
+        // Kendi bekleyen yazma işlemimiz sürüyorsa yerel state'i ezme
+        if (
+          (snapshot.metadata.hasPendingWrites || isSavingToCloudRef.current) &&
+          isCloudHydratedRef.current
+        ) {
           return;
         }
 
-        const parsed = parseFirestoreWorkspaceDoc(snapshot.data(), todayStr);
-        if (parsed) {
-          suppressNextCloudWriteRef.current = true;
+        const parsedResult = parseFirestoreWorkspaceDoc(snapshot.data(), todayStr);
+        if (parsedResult) {
+          const { snapshot: parsed, hadLegacyDemoData } = parsedResult;
+          const incomingFingerprint = computeWorkspaceFingerprint(parsed);
+
+          // Eğer gelen bulut verisi zaten yerel durumumuzla aynıysa hiçbir state'i tetikleme
+          if (
+            isCloudHydratedRef.current &&
+            incomingFingerprint === lastSyncedFingerprintRef.current &&
+            !hadLegacyDemoData
+          ) {
+            setCloudSyncStatus('SYNCED');
+            return;
+          }
+
+          lastSyncedFingerprintRef.current = incomingFingerprint;
           setTopics(parsed.topics);
           setTriageLogs(parsed.triageLogs);
           setDailyGoal(parsed.dailyGoal);
@@ -641,8 +607,29 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setAnkiSnapshot(parsed.ankiSnapshot);
           setSystemParams(parsed.systemParams);
           isCloudHydratedRef.current = true;
-          setCloudSyncStatus('SYNCED');
-          setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+
+          // Eğer bulutta eski demo kayıtları (DENEME-01..04 veya demo takvim görevleri) vardıysa temizlenmiş halini hemen buluta yaz
+          if (hadLegacyDemoData) {
+            isSavingToCloudRef.current = true;
+            setCloudSyncStatus('SYNCING');
+            saveCloudWorkspace(cloudUser.uid, parsed, true)
+              .then(() => {
+                isSavingToCloudRef.current = false;
+                setCloudSyncStatus('SYNCED');
+                setLastCloudSyncedAt(
+                  new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                );
+              })
+              .catch(() => {
+                isSavingToCloudRef.current = false;
+                setCloudSyncStatus('ERROR');
+              });
+          } else {
+            setCloudSyncStatus('SYNCED');
+            setLastCloudSyncedAt(
+              new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+            );
+          }
         }
       },
       error => {
@@ -658,43 +645,49 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribeSnapshot();
   }, [isAuthReady, cloudUser, todayStr]);
 
-  // Yerel state değiştiğinde otomatik bulut senkronizasyonu (600ms debounce)
+  // Yerel state değiştiğinde otomatik bulut senkronizasyonu (fingerprint kontrollü, 250ms debounce)
   useEffect(() => {
     if (!isAuthReady || !cloudUser || !isCloudHydratedRef.current) return;
 
-    if (suppressNextCloudWriteRef.current) {
-      suppressNextCloudWriteRef.current = false;
+    const currentSnapshot = {
+      studyDate: todayStr,
+      streakDays: 14,
+      topics,
+      triageLogs,
+      dailyGoal,
+      mockExams,
+      semanticErrors,
+      questionLogs,
+      topicTaxonomy,
+      ankiSnapshot,
+      systemParams
+    };
+
+    const currentFingerprint = computeWorkspaceFingerprint(currentSnapshot);
+    if (currentFingerprint === lastSyncedFingerprintRef.current) {
       return;
     }
 
+    // Parmak izini hemen güncelle ki gelen eski snapshot yerel silme/düzenleme işlemini geri almasın
+    lastSyncedFingerprintRef.current = currentFingerprint;
+    isSavingToCloudRef.current = true;
     setCloudSyncStatus('SYNCING');
+
     const timer = setTimeout(() => {
-      saveCloudWorkspace(
-        cloudUser.uid,
-        {
-          studyDate: todayStr,
-          streakDays: 14,
-          topics,
-          triageLogs,
-          dailyGoal,
-          mockExams,
-          semanticErrors,
-          questionLogs,
-          topicTaxonomy,
-          ankiSnapshot,
-          systemParams
-        },
-        hasRemoteDocRef.current
-      )
+      saveCloudWorkspace(cloudUser.uid, currentSnapshot, hasRemoteDocRef.current)
         .then(() => {
           hasRemoteDocRef.current = true;
+          isSavingToCloudRef.current = false;
           setCloudSyncStatus('SYNCED');
-          setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+          setLastCloudSyncedAt(
+            new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+          );
         })
         .catch(() => {
+          isSavingToCloudRef.current = false;
           setCloudSyncStatus('ERROR');
         });
-    }, 600);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [

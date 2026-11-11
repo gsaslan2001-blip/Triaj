@@ -13,6 +13,7 @@ import {
   getDoc,
   getDocFromServer,
   setDoc,
+  updateDoc,
   onSnapshot,
   serverTimestamp,
   Timestamp
@@ -31,6 +32,7 @@ import {
 } from '../types/dus';
 import { INITIAL_TOPIC_UNITS } from '../data/dusDatabase';
 import {
+  DEMO_SEED_IDS,
   INITIAL_ANKI_FSRS_SNAPSHOT,
   INITIAL_SYSTEM_PARAMETERS
 } from '../data/excelMasterSeed';
@@ -119,6 +121,36 @@ export interface CloudWorkspaceSnapshot {
 }
 
 /**
+ * Önceden demo/simülasyon amacıyla eklenmiş olan örnek ünite görevlerini ve
+ * örnek deneme/hata/log kayıtlarını otomatik olarak temizler.
+ */
+export function isLegacyDemoTopicState(topic: TopicUnit): boolean {
+  const demoT0Date = DEMO_SEED_IDS.DEMO_TOPIC_IDS_AND_DATES.get(topic.id);
+  if (!demoT0Date) return false;
+  return topic.t0Date === demoT0Date;
+}
+
+export function resetTopicToCleanDefault(topic: TopicUnit, idx?: number): TopicUnit {
+  return {
+    id: topic.id,
+    topicCode:
+      topic.topicCode ||
+      (typeof idx === 'number' ? `K${String(idx + 1).padStart(4, '0')}` : undefined),
+    subjectId: topic.subjectId,
+    unitNumber: topic.unitNumber,
+    title: topic.title,
+    subtopics: [],
+    status: 'NOT_STARTED',
+    currentBucket: 'NONE',
+    priority: 'P3_MEDIUM',
+    discharged: false,
+    reviewCount: 0,
+    createdAt: topic.createdAt || '2026-11-10',
+    updatedAt: '2026-11-11'
+  };
+}
+
+/**
  * Firestore 'undefined' alanları kabul etmediği için nesneleri derinlemesine temizler.
  */
 function stripUndefined<T>(value: T): T {
@@ -176,6 +208,7 @@ function orderedMapToArray<T>(mapObj: unknown): T[] {
 const seedTopicIds = new Set(INITIAL_TOPIC_UNITS.map(t => t.id));
 
 function isTopicModifiedFromDefault(topic: TopicUnit): boolean {
+  if (isLegacyDemoTopicState(topic)) return false;
   if (!seedTopicIds.has(topic.id)) return true;
   return Boolean(
     topic.status !== 'NOT_STARTED' ||
@@ -207,13 +240,26 @@ export function buildFirestoreStateMap(
     deletedMap[delId] = true;
   }
 
+  const cleanTriageLogs = snapshot.triageLogs.filter(
+    l => !DEMO_SEED_IDS.TRIAGE_LOGS.has(l.id)
+  );
+  const cleanMockExams = snapshot.mockExams.filter(
+    m => !DEMO_SEED_IDS.MOCK_EXAMS.has(m.id)
+  );
+  const cleanSemanticErrors = snapshot.semanticErrors.filter(
+    e => !DEMO_SEED_IDS.SEMANTIC_ERRORS.has(e.id)
+  );
+  const cleanQuestionLogs = snapshot.questionLogs.filter(
+    q => !DEMO_SEED_IDS.QUESTION_LOGS.has(q.id)
+  );
+
   return {
     topicsDeltaById: arrayToOrderedMap(activeTopics, 'topic'),
     deletedSeedTopicsById: deletedMap,
-    triageLogsById: arrayToOrderedMap(snapshot.triageLogs, 'log'),
-    mockExamsById: arrayToOrderedMap(snapshot.mockExams, 'exam'),
-    semanticErrorsById: arrayToOrderedMap(snapshot.semanticErrors, 'err'),
-    questionLogsById: arrayToOrderedMap(snapshot.questionLogs, 'qlog'),
+    triageLogsById: arrayToOrderedMap(cleanTriageLogs, 'log'),
+    mockExamsById: arrayToOrderedMap(cleanMockExams, 'exam'),
+    semanticErrorsById: arrayToOrderedMap(cleanSemanticErrors, 'err'),
+    questionLogsById: arrayToOrderedMap(cleanQuestionLogs, 'qlog'),
     topicTaxonomyById: arrayToOrderedMap(snapshot.topicTaxonomy, 'tax'),
     dailyGoal: stripUndefined({
       ...snapshot.dailyGoal,
@@ -225,14 +271,20 @@ export function buildFirestoreStateMap(
   };
 }
 
+export function computeWorkspaceFingerprint(snapshot: CloudWorkspaceSnapshot): string {
+  return JSON.stringify(buildFirestoreStateMap(snapshot));
+}
+
 export function parseFirestoreWorkspaceDoc(
   data: Record<string, unknown>,
   fallbackTodayStr: string
-): CloudWorkspaceSnapshot | null {
+): { snapshot: CloudWorkspaceSnapshot; hadLegacyDemoData: boolean } | null {
   const stateMap = data.stateMap as Record<string, unknown> | undefined;
   if (!stateMap || typeof stateMap !== 'object') {
     return null;
   }
+
+  let hadLegacyDemoData = false;
 
   const updatedAtField = data.updatedAt as Timestamp | undefined;
   const updatedAtIso =
@@ -240,29 +292,81 @@ export function parseFirestoreWorkspaceDoc(
       ? updatedAtField.toDate().toISOString()
       : undefined;
 
-  const deltaTopics = orderedMapToArray<TopicUnit>(stateMap.topicsDeltaById);
-  const deltaById = new Map(deltaTopics.map(t => [t.id, t]));
+  const rawDeltaTopics = orderedMapToArray<TopicUnit>(stateMap.topicsDeltaById);
+  const deltaById = new Map<string, TopicUnit>();
+  for (const t of rawDeltaTopics) {
+    if (isLegacyDemoTopicState(t)) {
+      hadLegacyDemoData = true;
+      continue;
+    }
+    deltaById.set(t.id, t);
+  }
+
   const deletedSeedMap =
     (stateMap.deletedSeedTopicsById as Record<string, boolean> | undefined) || {};
 
-  // Merge deltaTopics onto INITIAL_TOPIC_UNITS + append any custom topics
   const mergedTopics: TopicUnit[] = [];
-  for (const seedTopic of INITIAL_TOPIC_UNITS) {
-    if (deletedSeedMap[seedTopic.id]) continue;
+  INITIAL_TOPIC_UNITS.forEach((seedTopic, idx) => {
+    if (deletedSeedMap[seedTopic.id]) return;
+    const topicCode = `K${String(idx + 1).padStart(4, '0')}`;
     const override = deltaById.get(seedTopic.id);
     if (override) {
       mergedTopics.push({
-        ...seedTopic,
-        ...override
+        ...override,
+        topicCode: override.topicCode || topicCode
       });
       deltaById.delete(seedTopic.id);
     } else {
-      mergedTopics.push(seedTopic);
+      mergedTopics.push({
+        ...seedTopic,
+        topicCode,
+        reviewCount: 0
+      });
     }
-  }
+  });
   for (const customTopic of deltaById.values()) {
     mergedTopics.push(customTopic);
   }
+
+  const rawTriageLogs = orderedMapToArray<TriageRecord>(stateMap.triageLogsById);
+  const triageLogs = rawTriageLogs.filter(l => {
+    if (DEMO_SEED_IDS.TRIAGE_LOGS.has(l.id)) {
+      hadLegacyDemoData = true;
+      return false;
+    }
+    return true;
+  });
+
+  const rawMockExams = orderedMapToArray<MockExamRecord>(stateMap.mockExamsById);
+  const mockExams = rawMockExams.filter(m => {
+    if (DEMO_SEED_IDS.MOCK_EXAMS.has(m.id)) {
+      hadLegacyDemoData = true;
+      return false;
+    }
+    return true;
+  });
+
+  const rawSemanticErrors = orderedMapToArray<SemanticErrorRecord>(
+    stateMap.semanticErrorsById
+  );
+  const semanticErrors = rawSemanticErrors.filter(e => {
+    if (DEMO_SEED_IDS.SEMANTIC_ERRORS.has(e.id)) {
+      hadLegacyDemoData = true;
+      return false;
+    }
+    return true;
+  });
+
+  const rawQuestionLogs = orderedMapToArray<DailyStudyQuestionLog>(
+    stateMap.questionLogsById
+  );
+  const questionLogs = rawQuestionLogs.filter(q => {
+    if (DEMO_SEED_IDS.QUESTION_LOGS.has(q.id)) {
+      hadLegacyDemoData = true;
+      return false;
+    }
+    return true;
+  });
 
   const rawGoal = (stateMap.dailyGoal as Record<string, unknown> | undefined) || {};
   const checklist = orderedMapToArray<DailyGoal['checklist'][number]>(
@@ -290,22 +394,25 @@ export function parseFirestoreWorkspaceDoc(
   };
 
   return {
-    studyDate: typeof data.studyDate === 'string' ? data.studyDate : fallbackTodayStr,
-    streakDays: typeof data.streakDays === 'number' ? data.streakDays : 14,
-    topics: mergedTopics,
-    triageLogs: orderedMapToArray<TriageRecord>(stateMap.triageLogsById),
-    dailyGoal,
-    mockExams: orderedMapToArray<MockExamRecord>(stateMap.mockExamsById),
-    semanticErrors: orderedMapToArray<SemanticErrorRecord>(stateMap.semanticErrorsById),
-    questionLogs: orderedMapToArray<DailyStudyQuestionLog>(stateMap.questionLogsById),
-    topicTaxonomy: orderedMapToArray<TopicTaxonomyItem>(stateMap.topicTaxonomyById),
-    ankiSnapshot:
-      (stateMap.ankiSnapshot as AnkiFsrsSnapshot | undefined) ||
-      INITIAL_ANKI_FSRS_SNAPSHOT,
-    systemParams:
-      (stateMap.systemParams as SystemParameters | undefined) ||
-      INITIAL_SYSTEM_PARAMETERS,
-    updatedAtIso
+    hadLegacyDemoData,
+    snapshot: {
+      studyDate: typeof data.studyDate === 'string' ? data.studyDate : fallbackTodayStr,
+      streakDays: typeof data.streakDays === 'number' ? data.streakDays : 14,
+      topics: mergedTopics,
+      triageLogs,
+      dailyGoal,
+      mockExams,
+      semanticErrors,
+      questionLogs,
+      topicTaxonomy: orderedMapToArray<TopicTaxonomyItem>(stateMap.topicTaxonomyById),
+      ankiSnapshot:
+        (stateMap.ankiSnapshot as AnkiFsrsSnapshot | undefined) ||
+        INITIAL_ANKI_FSRS_SNAPSHOT,
+      systemParams:
+        (stateMap.systemParams as SystemParameters | undefined) ||
+        INITIAL_SYSTEM_PARAMETERS,
+      updatedAtIso
+    }
   };
 }
 
@@ -320,47 +427,42 @@ export async function saveCloudWorkspace(
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(snapshot.studyDate)
     ? snapshot.studyDate
     : '2026-11-11';
+  const clampedStreak = Math.max(
+    0,
+    Math.min(3650, Math.round(snapshot.streakDays || 0))
+  );
 
   try {
-    if (!isExistingDoc) {
-      const existingSnap = await getDoc(docRef);
-      if (!existingSnap.exists()) {
-        await setDoc(docRef, {
-          ownerId: userId,
-          schemaVersion: 2,
-          studyDate: validDate,
-          streakDays: Math.max(0, Math.min(3650, Math.round(snapshot.streakDays || 0))),
-          stateMap,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        return;
-      }
-      const existingData = existingSnap.data();
-      await setDoc(docRef, {
-        ownerId: userId,
+    if (isExistingDoc) {
+      await updateDoc(docRef, {
         schemaVersion: 2,
         studyDate: validDate,
-        streakDays: Math.max(0, Math.min(3650, Math.round(snapshot.streakDays || 0))),
+        streakDays: clampedStreak,
         stateMap,
-        createdAt: existingData.createdAt || serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       return;
     }
 
     const existingSnap = await getDoc(docRef);
-    const createdAtVal = existingSnap.exists()
-      ? existingSnap.data().createdAt
-      : serverTimestamp();
+    if (existingSnap.exists()) {
+      await updateDoc(docRef, {
+        schemaVersion: 2,
+        studyDate: validDate,
+        streakDays: clampedStreak,
+        stateMap,
+        updatedAt: serverTimestamp()
+      });
+      return;
+    }
 
     await setDoc(docRef, {
       ownerId: userId,
       schemaVersion: 2,
       studyDate: validDate,
-      streakDays: Math.max(0, Math.min(3650, Math.round(snapshot.streakDays || 0))),
+      streakDays: clampedStreak,
       stateMap,
-      createdAt: createdAtVal,
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
   } catch (error) {
@@ -381,5 +483,5 @@ export async function signOutFromCloud(): Promise<void> {
   await signOut(auth);
 }
 
-export { onAuthStateChanged, doc, getDoc, setDoc, onSnapshot };
+export { onAuthStateChanged, doc, getDoc, setDoc, updateDoc, onSnapshot };
 export type { User };
