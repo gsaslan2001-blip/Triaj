@@ -1,0 +1,6 @@
+{
+  "name": "DUS Kova Triyajı & Çalışma Planlayıcı",
+  "description": "15 DUS dersi kategorize veritabanı, bilişsel Kova Triyajı (Yeşil, Sarı, Kırmızı), gecikmeli geri çağırma takibi ve günlük hedef yönetim sistemi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
