@@ -13,11 +13,12 @@ export type BucketType = 'GREEN' | 'YELLOW' | 'RED' | 'NONE';
 export type PriorityLevel = 'P1_CRITICAL' | 'P2_HIGH' | 'P3_MEDIUM' | 'P4_LOW';
 
 export type TestStage =
-  | 'T0_SAMPLING'        // T+0 günü: 10 soruluk adımlı örnekleme
-  | 'T3_MAIN'            // T+3 günü: Kalan 40 soru esas geri çağırma (Triyaj Belirleyici)
-  | 'T14_VERIFICATION'   // Sarı Kova T+14: 20-25 soru doğrulama testi
-  | 'SATURDAY_REPAIR'    // Kırmızı Kova Cumartesi: 30 soru onarım testi
-  | 'BRANCH_EXAM';       // Biten dersler için karma branş denemesi
+  | 'T0_SAMPLING'          // T+0 günü: Konu çalışması + 20 soruluk kalibrasyon (İstatistik kova belirlemez!)
+  | 'T3_MAIN'              // T+3 günü: Esas geri çağırma testi (Kova Triyajını belirleyen ana karar noktası)
+  | 'T14_VERIFICATION'     // Sarı Kova T+14: 20-25 soru doğrulama testi (≥%85 Yeşil Taburcu, <%70 Kırmızı Kova)
+  | 'SATURDAY_REPAIR'      // Kırmızı Kova Cumartesi: 25 dk Boş Kağıt + 30 soru onarım (≥%80 Sarı Kova T+14 3. Banka)
+  | 'EXAM_T3_VERIFICATION' // Deneme Yanlışı T+3: 15 soru mini doğrulama (≥13D kapanır, ≥3Y Cumartesi Kırmızı Kova)
+  | 'BRANCH_EXAM';         // Biten dersler için karma branş denemesi
 
 export interface SubjectProtocol {
   cognitiveCharacteristics: string;
@@ -67,6 +68,7 @@ export interface TopicUnit {
   t3DueDate?: string;            // YYYY-MM-DD (T+0 + 3 gün)
   t14DueDate?: string;           // YYYY-MM-DD (Sarı Kova için T+3 + 14 gün)
   saturdayRepairDate?: string;   // YYYY-MM-DD (Kırmızı Kova için en yakın Cumartesi)
+  promotedFromRed?: boolean;     // Cumartesi Kırmızı Kova onarımından Sarı Kovaya terfi etti mi (T+14'te 3. Banka kullanılır)
   reviewCount?: number;          // Toplam tekrar/test sayısı
   lastStudiedDate?: string;      // Son çalışma tarihi
   t0Score?: ScoreDetail;

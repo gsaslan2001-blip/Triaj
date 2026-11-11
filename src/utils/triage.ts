@@ -23,11 +23,49 @@ export interface TriageResult {
   clinicalDiagnosis: string;
   recommendedAction: string;
   nextScheduledDate?: string;
-  scheduleType?: 'DISCHARGED' | 'T14_VERIFICATION' | 'SATURDAY_REPAIR';
+  scheduleType?: 'DISCHARGED' | 'T14_VERIFICATION' | 'SATURDAY_REPAIR' | 'T3_LOCKED';
+  affectsBucket?: boolean;
+  recommendedBank?: string;
 }
 
 /**
- * T+3 Günü 40 Soruluk Test Sonucuna Göre Bilişsel Triyaj Kararı
+ * T+0 Günü Konu Çalışması + 20 Soruluk Kalibrasyon Değerlendirmesi
+ * Doktrin Kuralı: T+0 günündeki 20 soruluk çözüm istatistiği kova rengini (Yeşil/Sarı/Kırmızı) BELİRLEMEZ!
+ * Tek amacı ilk kodlamayı doğrulamak ve 3 gün sonrasına (T+3) esas geri çağırma testini kilitlemektir.
+ * @param correct Doğru sayısı
+ * @param total Toplam soru (Standart 20 soru)
+ * @param studyDate Konunun çalışıldığı tarih (YYYY-MM-DD)
+ */
+export function evaluateT0Calibration(
+  correct: number,
+  total: number = 20,
+  studyDate: string = getTodayString()
+): TriageResult {
+  const safeTotal = total > 0 ? total : 20;
+  const safeCorrect = Math.max(0, Math.min(correct, safeTotal));
+  const wrong = safeTotal - safeCorrect;
+  const percentage = Math.round((safeCorrect / safeTotal) * 100);
+  const t3Date = addDays(studyDate, 3);
+
+  return {
+    bucket: 'NONE',
+    priority: 'P3_MEDIUM',
+    percentage,
+    correct: safeCorrect,
+    wrong,
+    total: safeTotal,
+    clinicalDiagnosis:
+      'T+0 İlk Kodlama & 20 Soruluk Kalibrasyon tamamlandı. Bu aşamadaki doğru/yanlış oranı kova rengini BELİRLEMEZ (kısa süreli hafıza yanılsamasını önlemek için kova kararı T+3 gününe bırakılır).',
+    recommendedAction: `Konu T+3 Bekleyenler sırasına alındı. 3 gün sonra (${t3Date}) konuyu tekrar okumadan çözülecek T+3 esas testindeki performansa göre Yeşil (bir daha tekrar sırasına girmez), Sarı (T+14) veya Kırmızı (Cumartesi Onarım) kovaya ayrılacaktır.`,
+    nextScheduledDate: t3Date,
+    scheduleType: 'T3_LOCKED',
+    affectsBucket: false,
+    recommendedBank: '1. Soru Bankası (Kalan 40 Soru - T+3 Esas Test)'
+  };
+}
+
+/**
+ * T+3 Günü Esas Geri Çağırma Testi Sonucuna Göre Bilişsel Kova Triyajı Kararı
  * @param correct Doğru sayısı
  * @param total Toplam soru (Standart 40 soru)
  * @param testDate Testin çözüldüğü tarih (YYYY-MM-DD)
@@ -43,7 +81,7 @@ export function evaluateT3Triage(
   const percentage = Math.round((safeCorrect / safeTotal) * 100);
 
   if (percentage >= 85) {
-    // YEŞİL KOVA: 40 Soruda 34-40 Doğru (≥%85 Başarı)
+    // YEŞİL KOVA: ≥%85 Başarı (Örn: 40 Soruda 34-40 Doğru)
     return {
       bucket: 'GREEN',
       priority: 'P4_LOW',
@@ -52,11 +90,14 @@ export function evaluateT3Triage(
       wrong,
       total: safeTotal,
       clinicalDiagnosis: 'Araya 3 tam gün girmesine rağmen şema neokortekste sağlam (≥%85).',
-      recommendedAction: 'HİÇBİR GÖREV EKLENMEZ (Taburcu!). 2. Soru Bankası çözülmez. Ünite takvimden çıkarılır; sadece ders bittiğinde branş denemelerinde taranır.',
-      scheduleType: 'DISCHARGED'
+      recommendedAction:
+        'Aşama 1: Sadece yanlış çıkan 1-6 sorunun paragrafını ana kitaptan oku (5-10 dk). Aşama 2 (Taburcu!): Konu bir daha tekrar sırasına GİRMEZ! 2. Soru Bankası çözülmez; sadece ders bittiğinde karma branş denemelerinde görülür.',
+      scheduleType: 'DISCHARGED',
+      affectsBucket: true,
+      recommendedBank: 'Tekrar Kuyruğundan Çıkarıldı (Sadece Ders Sonu Karma Branş Denemesi)'
     };
   } else if (percentage >= 70) {
-    // SARI KOVA: 40 Soruda 28-33 Doğru (%70-%84 Başarı)
+    // SARI KOVA: %70-%84 Başarı (Örn: 40 Soruda 28-33 Doğru)
     const t14Date = addDays(testDate, 14);
     return {
       bucket: 'YELLOW',
@@ -65,13 +106,17 @@ export function evaluateT3Triage(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'Ana iskelet oturmuş ancak bazı spesifik alt başlıklar veya sınıflamalar 3 günde erimiş (%70-%84).',
-      recommendedAction: 'Yanlış çıkan soruların ilgili paragraflarını ana kitaptan 15 dk dikkatlice oku ve yıldızla. 14 gün sonraya (T+14) 2. Soru Bankasından 20-25 soruluk doğrulama testi planlandı.',
+      clinicalDiagnosis:
+        'Ana iskelet oturmuş ancak bazı spesifik alt başlıklar veya sınıflamalar 3 günde erimiş (%70-%84).',
+      recommendedAction:
+        'Aşama 1: Yanlış çıkan soruların alt başlıklarını ana kitaptan 15 dk dikkatlice oku ve yıldızla. Aşama 2: 14 gün sonrasına (T+14) yıldızlı yerlere 5 dk göz atma + 2. Soru Bankasından (veya DUSBANKASI) 1 test (20-25 soru) doğrulama görevi kilitlendi.',
       nextScheduledDate: t14Date,
-      scheduleType: 'T14_VERIFICATION'
+      scheduleType: 'T14_VERIFICATION',
+      affectsBucket: true,
+      recommendedBank: '2. Soru Bankası / DUSBANKASI (20-25 Soru Doğrulama Testi)'
     };
   } else {
-    // KIRMIZI KOVA: 40 Soruda ≤27 Doğru (<%70 Başarı)
+    // KIRMIZI KOVA: <%70 Başarı (Örn: 40 Soruda ≤27 Doğru)
     const saturdayDate = getNextSaturday(testDate);
     return {
       bucket: 'RED',
@@ -80,10 +125,14 @@ export function evaluateT3Triage(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'Alarm! İlk gün şema hiç oturmamış veya ünite aşırı nankör (<%70). 10 dk yama yetmez.',
-      recommendedAction: 'Günlük programı bozma. Ünite Cumartesi Kova Onarım Bloğuna (25 dk Boş Kağıt ile yeniden inşa + 2. Soru Bankasından 30 soru) atandı.',
+      clinicalDiagnosis:
+        'Alarm! İlk gün şema hiç oturmamış veya ünite aşırı nankör (<%70). Hafta içi 10 dk yama yetmez.',
+      recommendedAction:
+        'Aşama 1: Hafta içi günlük programı bozma, çöken alt başlıkları not al. Aşama 2: Ünite Cumartesi Kova Onarım Bloğuna (25 dk Boş Kağıt / Kıyas Tablosu ile aktif yeniden inşa + 2. Soru Bankasından 30 soru) atandı.',
       nextScheduledDate: saturdayDate,
-      scheduleType: 'SATURDAY_REPAIR'
+      scheduleType: 'SATURDAY_REPAIR',
+      affectsBucket: true,
+      recommendedBank: '2. Soru Bankası / DUSBANKASI (30 Soru Cumartesi Onarım Testi)'
     };
   }
 }
@@ -92,11 +141,14 @@ export function evaluateT3Triage(
  * Sarı Kova T+14 Doğrulama Testi Değerlendirmesi
  * @param correct Doğru sayısı
  * @param total Toplam soru (Standart 20-25)
+ * @param testDate Test tarihi
+ * @param promotedFromRed Kırmızı Kovadan Cumartesi onarımıyla mı geldi (3. Banka kullanımı)
  */
 export function evaluateT14Verification(
   correct: number,
   total: number = 20,
-  testDate: string = getTodayString()
+  testDate: string = getTodayString(),
+  promotedFromRed: boolean = false
 ): TriageResult {
   const safeTotal = total > 0 ? total : 20;
   const safeCorrect = Math.max(0, Math.min(correct, safeTotal));
@@ -112,13 +164,18 @@ export function evaluateT14Verification(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'T+14 gecikmeli doğrulaması başarılı! Zayıf sinapslar onarıldı.',
-      recommendedAction: 'Yeşil Kovaya terfi etti (Taburcu!). Takvimden düşürülür.',
-      scheduleType: 'DISCHARGED'
+      clinicalDiagnosis: 'T+14 gecikmeli doğrulaması başarılı (≥%85)! Zayıf sinapslar kalıcı olarak onarıldı.',
+      recommendedAction: 'Yeşil Kovaya terfi etti (Taburcu!). Konu bir daha tekrar sırasına girmez, takvimden düşürülür.',
+      scheduleType: 'DISCHARGED',
+      affectsBucket: true,
+      recommendedBank: 'Taburcu Edildi (Tekrar Sırasından Çıktı)'
     };
   } else if (percentage >= 70) {
     // Halen Sarı Kovada kalır, bir takip daha eklenir
     const nextDate = addDays(testDate, 14);
+    const bankLabel = promotedFromRed
+      ? '3. Soru Bankası / DUSBANKASI (20-25 Soru)'
+      : '2. Soru Bankası / DUSBANKASI (20-25 Soru)';
     return {
       bucket: 'YELLOW',
       priority: 'P2_HIGH',
@@ -126,10 +183,12 @@ export function evaluateT14Verification(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'Halen sınırda performans (%70-%84).',
-      recommendedAction: 'Hatalı başlıkları tekrar incele. 14 gün sonrasına ek mini kontrol planlandı.',
+      clinicalDiagnosis: 'Halen sınırda performans (%70-%84). Şema tam sağlamlaşmamış.',
+      recommendedAction: `Yıldızlı başlıkları 10 dk tekrar incele. 14 gün sonrasına (${nextDate}) ${bankLabel} ile ek doğrulama planlandı.`,
       nextScheduledDate: nextDate,
-      scheduleType: 'T14_VERIFICATION'
+      scheduleType: 'T14_VERIFICATION',
+      affectsBucket: true,
+      recommendedBank: bankLabel
     };
   } else {
     // T+14'te <%70 ise Kırmızıya düşer!
@@ -141,16 +200,19 @@ export function evaluateT14Verification(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'T+14 kontrolünde gerileme tespit edildi (<%70).',
-      recommendedAction: 'Kırmızı Kovaya düşürüldü. Cumartesi Kova Onarım Bloğuna aktarıldı.',
+      clinicalDiagnosis: 'T+14 kontrolünde ciddi unutma / gerileme tespit edildi (<%70).',
+      recommendedAction:
+        'Kırmızı Kovaya düşürüldü! Cumartesi Kova Onarım Bloğuna (25 dk Boş Kağıt + 30 soru) aktarıldı.',
       nextScheduledDate: saturdayDate,
-      scheduleType: 'SATURDAY_REPAIR'
+      scheduleType: 'SATURDAY_REPAIR',
+      affectsBucket: true,
+      recommendedBank: '2. Soru Bankası / DUSBANKASI (30 Soru Cumartesi Onarım)'
     };
   }
 }
 
 /**
- * Kırmızı Kova Cumartesi Onarım Testi Değerlendirmesi
+ * Kırmızı Kova Cumartesi Onarım Testi Değerlendirmesi (PDF Madde 5.2 - C: Kırmızı Kova Protokolü)
  * @param correct Doğru sayısı
  * @param total Toplam soru (Standart 30)
  */
@@ -165,7 +227,7 @@ export function evaluateSaturdayRepair(
   const wrong = safeTotal - safeCorrect;
 
   if (percentage >= 80) {
-    // %80+ ise Sarı Kovaya terfi eder (T+14'e 3. Bankadan test konur)
+    // %80+ (30 soruda ≥24 doğru) ise Sarı Kovaya terfi eder (T+14'e 3. Soru Bankasından / DUSBANKASI test konur)
     const t14Date = addDays(testDate, 14);
     return {
       bucket: 'YELLOW',
@@ -174,10 +236,13 @@ export function evaluateSaturdayRepair(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'Cumartesi derin onarımı başarılı (≥%80). Şema toparlandı.',
-      recommendedAction: 'Sarı Kovaya terfi etti! 14 gün sonrasına (T+14) 3. Soru Bankasından test planlandı.',
+      clinicalDiagnosis: 'Cumartesi derin onarımı başarılı (≥%80 / 30 soruda 24+ doğru). Çöken şema yeniden inşa edildi.',
+      recommendedAction:
+        'Sarı Kovaya terfi etti! 14 gün sonrasına (T+14) 3. Soru Bankasından (veya DUSBANKASI) 20-25 soruluk doğrulama testi kilitlendi.',
       nextScheduledDate: t14Date,
-      scheduleType: 'T14_VERIFICATION'
+      scheduleType: 'T14_VERIFICATION',
+      affectsBucket: true,
+      recommendedBank: '3. Soru Bankası / DUSBANKASI (20-25 Soru T+14 Doğrulama)'
     };
   } else {
     // Yeniden Cumartesi Kırmızı Kovada kalır
@@ -189,10 +254,65 @@ export function evaluateSaturdayRepair(
       correct: safeCorrect,
       wrong,
       total: safeTotal,
-      clinicalDiagnosis: 'Onarım henüz yetersiz (<%80). Konseptsel boşluk devam ediyor.',
-      recommendedAction: 'Kırmızı Kovada kaldı. Gelecek Cumartesi için Feynamn / Detaylandırıcı Sorgulama ile yama planlandı.',
+      clinicalDiagnosis: 'Onarım henüz %80 barajının altında (<%80). Konseptsel boşluk devam ediyor.',
+      recommendedAction:
+        'Kırmızı Kovada kaldı. Gelecek Cumartesi için Feynman / Boş Kağıt ve Detaylandırıcı Sorgulama ile yeniden inşa planlandı.',
       nextScheduledDate: nextSaturday,
-      scheduleType: 'SATURDAY_REPAIR'
+      scheduleType: 'SATURDAY_REPAIR',
+      affectsBucket: true,
+      recommendedBank: '2. Soru Bankası / DUSBANKASI (30 Soru Cumartesi Onarım)'
+    };
+  }
+}
+
+/**
+ * Deneme / Branş Denemesi Yanlışı T+3 (15 Soruluk) Doğrulama Testi (PDF Madde 7.3)
+ * 15 soruda ≥13 doğru (≥%85) ise dosya kapanır (Yeşil Taburcu); 3 veya daha fazla yanlış çıkarsa ünite Cumartesi Kırmızı Kovaya atılır.
+ */
+export function evaluateExamT3Verification(
+  correct: number,
+  total: number = 15,
+  testDate: string = getTodayString()
+): TriageResult {
+  const safeTotal = total > 0 ? total : 15;
+  const safeCorrect = Math.max(0, Math.min(correct, safeTotal));
+  const wrong = safeTotal - safeCorrect;
+  const percentage = Math.round((safeCorrect / safeTotal) * 100);
+
+  // PDF 7.3: 15 soruda ≥13 doğru (veya genel toplamda ≥%85 ve yanlış <= 2) ise dosya kapanır
+  const passed = safeTotal === 15 ? safeCorrect >= 13 : percentage >= 85;
+
+  if (passed) {
+    return {
+      bucket: 'GREEN',
+      priority: 'P4_LOW',
+      percentage,
+      correct: safeCorrect,
+      wrong,
+      total: safeTotal,
+      clinicalDiagnosis: 'Deneme yanlışı T+3 (15 soruluk) doğrulama testi başarılı! Nokta atışı yama tuttu.',
+      recommendedAction: 'Dosya kapandı (Yeşil Kova / Taburcu!). Konu tekrar sırasına girmez.',
+      scheduleType: 'DISCHARGED',
+      affectsBucket: true,
+      recommendedBank: 'Dosya Kapandı (Yeşil Taburcu)'
+    };
+  } else {
+    const saturdayDate = getNextSaturday(testDate);
+    return {
+      bucket: 'RED',
+      priority: 'P1_CRITICAL',
+      percentage,
+      correct: safeCorrect,
+      wrong,
+      total: safeTotal,
+      clinicalDiagnosis:
+        'Deneme yanlışı T+3 doğrulama testinde 3 veya daha fazla yanlış çıktı! Nokta atışı yama yetmedi, ünite şemasında çatlak var.',
+      recommendedAction:
+        'Ünite komple Cumartesi Kırmızı Kova Onarım Bloğuna (25 dk Boş Kağıt + 2. Bankadan 30 soru) gönderildi.',
+      nextScheduledDate: saturdayDate,
+      scheduleType: 'SATURDAY_REPAIR',
+      affectsBucket: true,
+      recommendedBank: '2. Soru Bankası / DUSBANKASI (30 Soru Cumartesi Onarım)'
     };
   }
 }
@@ -314,13 +434,16 @@ export function generateNotifications(
       if (topic.t14DueDate <= todayStr) {
         const diff = getDaysDiff(topic.t14DueDate, todayStr);
         const overdueText = diff > 0 ? ` (${diff} gün gecikti!)` : ' (Bugün)';
+        const bankText = topic.promotedFromRed
+          ? '3. Soru Bankasından (veya DUSBANKASI)'
+          : '2. Soru Bankasından (veya DUSBANKASI)';
         notifications.push({
           id: `t14-due-${topic.id}`,
           topicId: topic.id,
           subjectId: topic.subjectId,
           type: 'T14_DUE',
           title: `🟡 T+14 Sarı Kova Doğrulaması${overdueText}: ${topic.title}`,
-          message: 'İşaretli alt başlıklara 5 dk göz atıp 2. Soru Bankasından 20-25 soru çözün (≥%85 ise Yeşile terfi!).',
+          message: `İşaretli/yıldızlı alt başlıklara 5 dk göz atıp ${bankText} 20-25 soru çözün (≥%85 ise Yeşile terfi & taburcu!).`,
           dueDate: topic.t14DueDate,
           priority: 'P2_HIGH',
           bucket: 'YELLOW',
@@ -339,7 +462,8 @@ export function generateNotifications(
           subjectId: topic.subjectId,
           type: 'SATURDAY_REPAIR',
           title: `🔴 Cumartesi Kova Onarım Görevi: ${topic.title}`,
-          message: 'Çöken alt başlıkları 25 dk aktif Boş Kağıt / Kıyas tablosu ile yeniden inşa edin + 30 soru çözün (%80+ ise Sarıya terfi!).',
+          message:
+            'Çöken alt başlıkları 25 dk aktif Boş Kağıt / Kıyas tablosu ile yeniden inşa edin + 2. Soru Bankasından 30 soru çözün (≥%80 ise Sarı Kovaya terfi!).',
           dueDate: topic.saturdayRepairDate,
           priority: 'P1_CRITICAL',
           bucket: 'RED',
@@ -388,9 +512,9 @@ export function generateTriageReport(
     const yellow = subTopics.filter(t => t.currentBucket === 'YELLOW').length;
     const red = subTopics.filter(t => t.currentBucket === 'RED').length;
     const pending = subTopics.filter(t => t.currentBucket === 'NONE').length;
-    const discharged = subTopics.filter(t => t.discharged).length;
+    const discharged = subTopics.filter(t => t.discharged || t.currentBucket === 'GREEN').length;
 
-    // Neokortikal Depolama Gücü: Yeşil = 1.0, Sarı = 0.5, Kırmızı = 0.0, Henüz çalışılmamış = 0.0
+    // Neokortikal Depolama Gücü: Yeşil = 1.0, Sarı = 0.55, Kırmızı = 0.2, Henüz çalışılmamış = 0.0
     const scoreSum = (green * 100) + (yellow * 55) + (red * 20);
     const retentionRate = totalUnits > 0 ? Math.round(scoreSum / totalUnits) : 0;
 
@@ -430,7 +554,7 @@ export function generateTriageReport(
   // DUS Toplamında Temel %33.3 (40 soru), Klinik %66.7 (80 soru)
   const overallRetentionIndex = Math.round((temelRetentionIndex * 0.333) + (klinikRetentionIndex * 0.667));
 
-  // Acil Aksiyon Görevleri (Takvim ve Tekrar Kuyruğu ile %100 Senkronize)
+  // Acil Aksiyon Görevleri (Takvim ve Tekrar Kuyruğu ile %100 Senkronize - Yeşil/Taburcu üniteler ASLA girmez!)
   const urgentTasks: KovaTriageReport['urgentTasks'] = [];
 
   // Kırmızı kova görevleri (Cumartesi onarımları)
@@ -447,7 +571,7 @@ export function generateTriageReport(
       priority: 'P1_CRITICAL',
       actionType: 'Cumartesi Kova Onarım Bloğu',
       targetDate: t.saturdayRepairDate!,
-      instruction: '25 dk aktif Boş Kağıt ile şema inşası + 2. Soru Bankasından 30 soru çözümü.'
+      instruction: '25 dk aktif Boş Kağıt / Kıyas Tablosu ile şema inşası + 2. Soru Bankasından 30 soru çözümü (≥%80 Sarı Kovaya terfi).'
     });
   }
 
@@ -456,6 +580,7 @@ export function generateTriageReport(
     t => t.currentBucket === 'YELLOW' && !t.discharged && Boolean(t.t14DueDate)
   )) {
     const sub = subjects.find(s => s.id === t.subjectId);
+    const bankName = t.promotedFromRed ? '3. Soru Bankasından' : '2. Soru Bankasından';
     urgentTasks.push({
       id: `urgent-yellow-${t.id}`,
       topicId: t.id,
@@ -463,15 +588,15 @@ export function generateTriageReport(
       subjectName: sub?.name || 'Ders',
       bucket: 'YELLOW',
       priority: 'P2_HIGH',
-      actionType: 'T+14 Doğrulama Testi',
+      actionType: t.promotedFromRed ? 'T+14 Doğrulama (3. Banka)' : 'T+14 Doğrulama (2. Banka)',
       targetDate: t.t14DueDate!,
-      instruction: 'Yıldızlı yerlere 5 dk göz at + 2. Soru Bankasından 20-25 soru çöz (≥%85 Yeşile terfi).'
+      instruction: `Yıldızlı yerlere 5 dk göz at + ${bankName} 20-25 soru çöz (≥%85 Yeşile terfi, <%70 Kırmızı Kova).`
     });
   }
 
-  // T+3 Gecikmeli test bekleyenler (Takvimdeki tüm aktif T+3 görevleri)
+  // T+3 Gecikmeli test bekleyenler (Takvimdeki tüm aktif T+3 görevleri — kova rengi henüz T+3'te belirlenecek!)
   for (const t of topics.filter(
-    t => t.status === 'T0_DONE' && !t.discharged && Boolean(t.t3DueDate)
+    t => t.status === 'T0_DONE' && t.currentBucket === 'NONE' && !t.discharged && Boolean(t.t3DueDate)
   )) {
     const sub = subjects.find(s => s.id === t.subjectId);
     const isDueNow = t.t3DueDate! <= todayStr;
@@ -482,9 +607,9 @@ export function generateTriageReport(
       subjectName: sub?.name || 'Ders',
       bucket: 'NONE',
       priority: isDueNow ? 'P2_HIGH' : 'P3_MEDIUM',
-      actionType: 'T+3 Esas Geri Çağırma Testi',
+      actionType: 'T+3 Esas Geri Çağırma Testi (Kova Karar Noktası)',
       targetDate: t.t3DueDate!,
-      instruction: '1. Soru Bankasından kalan 40 soruyu sınav ciddiyetiyle çöz ve triyajı gerçekleştir.'
+      instruction: 'Konuyu tekrar okumadan 1. Soru Bankasından 40 soruyu çöz: ≥%85 Yeşil (Taburcu), %70-%84 Sarı (T+14), <%70 Kırmızı (Cumartesi).'
     });
   }
 

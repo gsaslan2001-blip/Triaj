@@ -37,13 +37,16 @@ import {
   INITIAL_SYSTEM_PARAMETERS
 } from '../data/excelMasterSeed';
 import {
+  evaluateT0Calibration,
   evaluateT3Triage,
   evaluateT14Verification,
   evaluateSaturdayRepair,
+  evaluateExamT3Verification,
   generateNotifications,
   generateTriageReport,
   getTodayString,
-  addDays
+  addDays,
+  getNextSaturday
 } from '../utils/triage';
 import {
   calculateSWSPS,
@@ -102,12 +105,48 @@ interface DUSContextType {
   clearTopicScheduledTask: (topicId: string) => void;
   deleteTriageLog: (logId: string) => void;
   inlineUpdateTopicPlan: (topicId: string, t0Date?: string, t3Correct?: number) => void;
+  assignTopicBucketDirectly: (
+    topicId: string,
+    targetState: 'T0_DONE' | 'GREEN' | 'YELLOW' | 'RED' | 'RESET',
+    customDate?: string
+  ) => void;
 
   // Triage Test Actions
-  recordT0Completion: (topicId: string, correct: number, total?: number, notes?: string) => void;
-  recordT3Triage: (topicId: string, correct: number, total?: number, notes?: string) => void;
-  recordT14Verification: (topicId: string, correct: number, total?: number, notes?: string) => void;
-  recordSaturdayRepair: (topicId: string, correct: number, total?: number, notes?: string) => void;
+  recordT0Completion: (
+    topicId: string,
+    correct: number,
+    total?: number,
+    notes?: string,
+    studyDate?: string
+  ) => void;
+  recordT3Triage: (
+    topicId: string,
+    correct: number,
+    total?: number,
+    notes?: string,
+    testDate?: string
+  ) => void;
+  recordT14Verification: (
+    topicId: string,
+    correct: number,
+    total?: number,
+    notes?: string,
+    testDate?: string
+  ) => void;
+  recordSaturdayRepair: (
+    topicId: string,
+    correct: number,
+    total?: number,
+    notes?: string,
+    testDate?: string
+  ) => void;
+  recordExamT3Verification: (
+    topicId: string,
+    correct: number,
+    total?: number,
+    notes?: string,
+    testDate?: string
+  ) => void;
 
   // Mock Exam, SWSPS Error, Question Log & System Parameter Actions
   addMockExam: (
@@ -838,11 +877,20 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /**
    * Tekrar_Takvimi (Sayfa 9 & 20): Sürükle-Bırak (Drag & Drop) ile Görev Erteleme / Taşıma
+   * Doktrin Kuralı: Yeşil Kova (Taburcu) üniteler bir daha tekrar sırasına GİRMEZ!
    */
   const rescheduleTopicTask = useCallback(
     (topicId: string, newTargetDate: string) => {
       const topic = topics.find(t => t.id === topicId);
       if (!topic || !newTargetDate) return;
+
+      if (topic.discharged || topic.currentBucket === 'GREEN') {
+        notifyUser(
+          'Yeşil Kova Dokunulmazlık Kuralı',
+          `${topic.title} Yeşil Kovada (Taburcu) olduğu için tekrar sırasına bir daha girmez.`
+        );
+        return;
+      }
 
       const updates: Partial<TopicUnit> = {};
       if (topic.currentBucket === 'RED') {
@@ -851,6 +899,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updates.t14DueDate = newTargetDate;
       } else {
         updates.status = topic.status === 'NOT_STARTED' ? 'T0_DONE' : topic.status;
+        updates.currentBucket = 'NONE';
         updates.t3DueDate = newTargetDate;
       }
 
@@ -880,6 +929,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 currentBucket: 'NONE',
                 priority: 'P3_MEDIUM',
                 discharged: false,
+                promotedFromRed: false,
                 t0Date: undefined,
                 t3DueDate: undefined,
                 t14DueDate: undefined,
@@ -932,7 +982,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       correct: number,
       total: number,
       durationMinutes: number,
-      notes?: string
+      notes?: string,
+      logDate?: string
     ) => {
       const branchCode = (topic.subjectId as CanonicalBranchCode) || 'B09';
       const branchSpec = CANONICAL_16_BRANCHES.find(b => b.code === branchCode);
@@ -943,7 +994,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const nextId = `LOG-${String(prev.length + 1).padStart(2, '0')}`;
         const newLog: DailyStudyQuestionLog = {
           id: nextId,
-          date: todayStr,
+          date: logDate || todayStr,
           sourceBook,
           branchCode,
           branchName: branchSpec?.name || branchCode,
@@ -967,6 +1018,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /**
    * Tekrar_Plani (Sayfa 6): Tablodan Doğrudan T+0 Tarihi ve T+3 Doğru (0-40) Hızlı Girişi
+   * T+0 girildiğinde kova rengi 'NONE' kalır, T+3 tarihi (+3 gün) kilitlenir.
+   * T+3 doğru sayısı girildiğinde kova rengi belirlenir; Yeşil ise tüm gelecek tekrar tarihleri silinir (bir daha tekrar sırasına girmez).
    */
   const inlineUpdateTopicPlan = useCallback(
     (topicId: string, t0Date?: string, t3Correct?: number) => {
@@ -981,9 +1034,16 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         const computedT3 = addDays(t0Date, 3);
         updateTopic(topicId, {
-          status: topic.status === 'NOT_STARTED' ? 'T0_DONE' : topic.status,
+          status: 'T0_DONE',
+          currentBucket: 'NONE',
+          priority: 'P3_MEDIUM',
+          discharged: false,
+          promotedFromRed: false,
           t0Date,
           t3DueDate: computedT3,
+          t14DueDate: undefined,
+          saturdayRepairDate: undefined,
+          t3Score: undefined,
           lastStudiedDate: t0Date,
           reviewCount: Math.max(1, topic.reviewCount || 0)
         });
@@ -992,17 +1052,17 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (t3Correct !== undefined && !Number.isNaN(t3Correct)) {
         const clamped = Math.max(0, Math.min(40, t3Correct));
         const baseT0 = t0Date || topic.t0Date || addDays(todayStr, -3);
-        const computedT3 = addDays(baseT0, 3);
         const triageResult = evaluateT3Triage(clamped, 40, todayStr);
         const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, todayStr);
 
         updateTopic(topicId, {
           t0Date: baseT0,
-          t3DueDate: computedT3,
+          t3DueDate: undefined, // T+3 çözüldüğü için T+3 bekleme kuyruğundan çıkar
           status: triageResult.bucket === 'GREEN' ? 'DISCHARGED' : 'TRIAGED',
           currentBucket: triageResult.bucket,
           priority: triageResult.priority,
           discharged: triageResult.bucket === 'GREEN',
+          promotedFromRed: false,
           t14DueDate:
             triageResult.bucket === 'YELLOW' ? triageResult.nextScheduledDate : undefined,
           saturdayRepairDate:
@@ -1045,73 +1105,147 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [topics, subjects, todayStr, triageLogs, updateTopic, clearTopicScheduledTask]
   );
 
-  // T0 Kalibrasyon Tamamlama
-  const recordT0Completion = useCallback(
-    (topicId: string, correct: number, total: number = 10, notes?: string) => {
+  /**
+   * Kovalara Hızlı Konu Ekleme / Kutu Değiştirme Yardımcısı
+   * Kullanıcının istediği konuyu tek tıkla T+0->T+3 akışına veya doğrudan Yeşil / Sarı / Kırmızı kutuya atamasını sağlar.
+   */
+  const assignTopicBucketDirectly = useCallback(
+    (
+      topicId: string,
+      targetState: 'T0_DONE' | 'GREEN' | 'YELLOW' | 'RED' | 'RESET',
+      customDate?: string
+    ) => {
       const topic = topics.find(t => t.id === topicId);
       if (!topic) return;
 
-      const t3Date = addDays(todayStr, 3);
-      const percentage = Math.round((correct / total) * 100);
+      const baseDate = customDate || todayStr;
+
+      if (targetState === 'RESET') {
+        clearTopicScheduledTask(topicId);
+        return;
+      }
+
+      if (targetState === 'T0_DONE') {
+        recordT0Completion(topicId, 16, 20, 'T+0 Konu Çalışması + 20 Soru Kalibrasyon (Kova T+3 gününde belirlenecek)', baseDate);
+        return;
+      }
+
+      if (targetState === 'GREEN') {
+        recordT3Triage(topicId, 36, 40, 'T+3 ≥%85 Yeşil Kova (Taburcu — tekrar sırasına bir daha girmez)', baseDate);
+        return;
+      }
+
+      if (targetState === 'YELLOW') {
+        recordT3Triage(topicId, 31, 40, 'T+3 %70-%84 Sarı Kova (15 dk yama + T+14 2. Banka doğrulama)', baseDate);
+        return;
+      }
+
+      if (targetState === 'RED') {
+        recordT3Triage(topicId, 24, 40, 'T+3 <%70 Kırmızı Kova (Cumartesi Kova Onarım Bloğu: 25 dk Boş Kağıt + 30 Soru)', baseDate);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [topics, todayStr, clearTopicScheduledTask]
+  );
+
+  // T+0 Kalibrasyon Tamamlama (20 Soru — İstatistik Kova Belirlemez! Sadece T+3'ü Kilitler)
+  const recordT0Completion = useCallback(
+    (
+      topicId: string,
+      correct: number,
+      total: number = 20,
+      notes?: string,
+      studyDate?: string
+    ) => {
+      const topic = topics.find(t => t.id === topicId);
+      if (!topic) return;
+
+      const effectiveDate = studyDate || todayStr;
+      const cal = evaluateT0Calibration(correct, total, effectiveDate);
 
       updateTopic(topicId, {
         status: 'T0_DONE',
-        t0Date: todayStr,
-        t3DueDate: t3Date,
-        lastStudiedDate: todayStr,
+        currentBucket: 'NONE', // T+0 istatistiği kova belirlemez!
+        priority: 'P3_MEDIUM',
+        discharged: false,
+        promotedFromRed: false,
+        t0Date: effectiveDate,
+        t3DueDate: cal.nextScheduledDate,
+        t14DueDate: undefined,
+        saturdayRepairDate: undefined,
+        t3Score: undefined,
+        lastStudiedDate: effectiveDate,
         reviewCount: (topic.reviewCount || 0) + 1,
         t0Score: {
-          correct,
-          wrong: total - correct,
-          total,
-          percentage,
-          date: todayStr
+          correct: cal.correct,
+          wrong: cal.wrong,
+          total: cal.total,
+          percentage: cal.percentage,
+          date: effectiveDate
         },
         clinicalNotes: notes || topic.clinicalNotes
       });
 
       setDailyGoal(prev => ({
         ...prev,
-        completedQuestions: prev.completedQuestions + total,
-        completedStudyMinutes: prev.completedStudyMinutes + 10
+        completedQuestions: prev.completedQuestions + cal.total,
+        completedStudyMinutes: prev.completedStudyMinutes + 20
       }));
 
-      appendAutoQuestionLog(topic, '1. Soru Bankası (T+0 Kalibrasyon)', correct, total, 10, notes);
+      appendAutoQuestionLog(
+        topic,
+        '1. Soru Bankası (T+0 20 Soru Kalibrasyon — Kova Belirlemez)',
+        cal.correct,
+        cal.total,
+        20,
+        notes,
+        effectiveDate
+      );
 
       notifyUser(
-        'T+0 Kalibrasyonu Tamamlandı',
-        `${topic.title}: 10 soruluk örnekleme kaydedildi. 3 gün sonra (${t3Date}) T+3 esas 40 soru kilitlendi.`
+        'T+0 Kalibrasyonu Kaydedildi (Kova T+3\'te Belirlenecek)',
+        `${topic.title}: ${cal.total} soruluk ilk kalibrasyon tamamlandı. Kova ayrımı 3 gün sonra (${cal.nextScheduledDate}) çözülecek T+3 esas testinde yapılacaktır.`
       );
     },
     [topics, todayStr, updateTopic, appendAutoQuestionLog, notifyUser]
   );
 
-  // T+3 Esas Triyaj Kaydı
+  // T+3 Esas Triyaj Kaydı (Kova Rengini Belirleyen Ana Karar Noktası)
   const recordT3Triage = useCallback(
-    (topicId: string, correct: number, total: number = 40, notes?: string) => {
+    (
+      topicId: string,
+      correct: number,
+      total: number = 40,
+      notes?: string,
+      testDate?: string
+    ) => {
       const topic = topics.find(t => t.id === topicId);
       if (!topic) return;
       const subject = subjects.find(s => s.id === topic.subjectId);
 
-      const triageResult = evaluateT3Triage(correct, total, todayStr);
-      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, todayStr);
+      const effectiveDate = testDate || todayStr;
+      const triageResult = evaluateT3Triage(correct, total, effectiveDate);
+      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, effectiveDate);
 
       const updatedTopic: Partial<TopicUnit> = {
+        t0Date: topic.t0Date || addDays(effectiveDate, -3),
+        t3DueDate: undefined, // T+3 tamamlandı; Yeşil ise bir daha asla sıraya girmez
         status: triageResult.bucket === 'GREEN' ? 'DISCHARGED' : 'TRIAGED',
         currentBucket: triageResult.bucket,
         priority: triageResult.priority,
         discharged: triageResult.bucket === 'GREEN',
+        promotedFromRed: false,
         t14DueDate: triageResult.bucket === 'YELLOW' ? triageResult.nextScheduledDate : undefined,
         saturdayRepairDate:
           triageResult.bucket === 'RED' ? triageResult.nextScheduledDate : undefined,
-        lastStudiedDate: todayStr,
+        lastStudiedDate: effectiveDate,
         reviewCount: (topic.reviewCount || 1) + 1,
         t3Score: {
-          correct,
-          wrong: total - correct,
-          total,
+          correct: triageResult.correct,
+          wrong: triageResult.wrong,
+          total: triageResult.total,
           percentage: triageResult.percentage,
-          date: todayStr
+          date: effectiveDate
         },
         clinicalNotes: notes
           ? `${topic.clinicalNotes ? topic.clinicalNotes + ' | ' : ''}${notes}`
@@ -1127,12 +1261,12 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subjectId: topic.subjectId,
         topicTitle: topic.title,
         subjectName: subject?.name || 'Ders',
-        date: todayStr,
+        date: effectiveDate,
         stage: 'T3_MAIN',
-        correct,
-        wrong: total - correct,
+        correct: triageResult.correct,
+        wrong: triageResult.wrong,
         empty: 0,
-        total,
+        total: triageResult.total,
         percentage: triageResult.percentage,
         resultingBucket: triageResult.bucket,
         resultingPriority: triageResult.priority,
@@ -1146,21 +1280,29 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setDailyGoal(prev => ({
         ...prev,
-        completedQuestions: prev.completedQuestions + total,
+        completedQuestions: prev.completedQuestions + triageResult.total,
         completedStudyMinutes: prev.completedStudyMinutes + 35
       }));
 
-      appendAutoQuestionLog(topic, '1. Soru Bankası (T+3 Triyaj)', correct, total, 35, notes);
+      appendAutoQuestionLog(
+        topic,
+        '1. Soru Bankası (T+3 Esas Kova Triyajı)',
+        triageResult.correct,
+        triageResult.total,
+        35,
+        notes,
+        effectiveDate
+      );
 
       const bucketLabel =
         triageResult.bucket === 'GREEN'
-          ? '🟢 Yeşil Kova (Taburcu)'
+          ? '🟢 Yeşil Kova (Taburcu — Tekrar Sırasına Bir Daha Girmez)'
           : triageResult.bucket === 'YELLOW'
-          ? '🟡 Sarı Kova (Müşahede - T+14)'
-          : '🔴 Kırmızı Kova (Yoğun Bakım - Cumartesi)';
+          ? '🟡 Sarı Kova (Müşahede — T+14 Doğrulama)'
+          : '🔴 Kırmızı Kova (Yoğun Bakım — Cumartesi Onarım Bloğu)';
       notifyUser(
-        `Kova Triyajı Kararı: ${bucketLabel}`,
-        `${topic.title}: %${triageResult.percentage} başarı (${correct}/${total}). ${triageResult.recommendedAction}`
+        `T+3 Kova Triyajı Kararı: ${bucketLabel}`,
+        `${topic.title}: %${triageResult.percentage} başarı (${triageResult.correct}/${triageResult.total}). ${triageResult.recommendedAction}`
       );
     },
     [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
@@ -1168,31 +1310,44 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sarı Kova T+14 Doğrulama Kaydı
   const recordT14Verification = useCallback(
-    (topicId: string, correct: number, total: number = 20, notes?: string) => {
+    (
+      topicId: string,
+      correct: number,
+      total: number = 20,
+      notes?: string,
+      testDate?: string
+    ) => {
       const topic = topics.find(t => t.id === topicId);
       if (!topic) return;
       const subject = subjects.find(s => s.id === topic.subjectId);
 
-      const triageResult = evaluateT14Verification(correct, total, todayStr);
-      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, todayStr);
+      const effectiveDate = testDate || todayStr;
+      const usedThirdBank = Boolean(topic.promotedFromRed);
+      const triageResult = evaluateT14Verification(correct, total, effectiveDate, usedThirdBank);
+      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, effectiveDate);
 
       updateTopic(topicId, {
+        t3DueDate: undefined,
         currentBucket: triageResult.bucket,
         priority: triageResult.priority,
         discharged: triageResult.bucket === 'GREEN',
         status: triageResult.bucket === 'GREEN' ? 'DISCHARGED' : 'TRIAGED',
+        promotedFromRed: triageResult.bucket === 'YELLOW' ? usedThirdBank : false,
         t14DueDate: triageResult.bucket === 'YELLOW' ? triageResult.nextScheduledDate : undefined,
         saturdayRepairDate:
           triageResult.bucket === 'RED' ? triageResult.nextScheduledDate : undefined,
-        lastStudiedDate: todayStr,
+        lastStudiedDate: effectiveDate,
         reviewCount: (topic.reviewCount || 2) + 1,
         t14Score: {
-          correct,
-          wrong: total - correct,
-          total,
+          correct: triageResult.correct,
+          wrong: triageResult.wrong,
+          total: triageResult.total,
           percentage: triageResult.percentage,
-          date: todayStr
-        }
+          date: effectiveDate
+        },
+        clinicalNotes: notes
+          ? `${topic.clinicalNotes ? topic.clinicalNotes + ' | ' : ''}${notes}`
+          : topic.clinicalNotes
       });
 
       const log: TriageRecord = {
@@ -1202,12 +1357,12 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subjectId: topic.subjectId,
         topicTitle: topic.title,
         subjectName: subject?.name || 'Ders',
-        date: todayStr,
+        date: effectiveDate,
         stage: 'T14_VERIFICATION',
-        correct,
-        wrong: total - correct,
+        correct: triageResult.correct,
+        wrong: triageResult.wrong,
         empty: 0,
-        total,
+        total: triageResult.total,
         percentage: triageResult.percentage,
         resultingBucket: triageResult.bucket,
         resultingPriority: triageResult.priority,
@@ -1220,19 +1375,29 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTriageLogs(prev => [log, ...prev]);
       setDailyGoal(prev => ({
         ...prev,
-        completedQuestions: prev.completedQuestions + total,
+        completedQuestions: prev.completedQuestions + triageResult.total,
         completedStudyMinutes: prev.completedStudyMinutes + 20
       }));
 
-      appendAutoQuestionLog(topic, '2. Soru Bankası (T+14 Doğrulama)', correct, total, 20, notes);
+      appendAutoQuestionLog(
+        topic,
+        usedThirdBank
+          ? '3. Soru Bankası / DUSBANKASI (T+14 Doğrulama)'
+          : '2. Soru Bankası / DUSBANKASI (T+14 Doğrulama)',
+        triageResult.correct,
+        triageResult.total,
+        20,
+        notes,
+        effectiveDate
+      );
 
       notifyUser(
         `T+14 Doğrulama: ${
           triageResult.bucket === 'GREEN'
-            ? 'Yeşile Terfi Etti!'
+            ? '🟢 Yeşile Terfi Etti (Taburcu)!'
             : triageResult.bucket === 'RED'
-            ? 'Kırmızıya Düştü!'
-            : 'Sarı Kovada Devam'
+            ? '🔴 Kırmızı Kovaya Düştü (Cumartesi Onarım)!'
+            : '🟡 Sarı Kovada Devam (+14 Gün)'
         }`,
         `${topic.title}: ${triageResult.recommendedAction}`
       );
@@ -1240,31 +1405,45 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
   );
 
-  // Kırmızı Kova Cumartesi Onarım Kaydı
+  // Kırmızı Kova Cumartesi Onarım Kaydı (25 dk Boş Kağıt + 2. Bankadan 30 Soru -> ≥%80 ise Sarı Kova T+14 3. Banka)
   const recordSaturdayRepair = useCallback(
-    (topicId: string, correct: number, total: number = 30, notes?: string) => {
+    (
+      topicId: string,
+      correct: number,
+      total: number = 30,
+      notes?: string,
+      testDate?: string
+    ) => {
       const topic = topics.find(t => t.id === topicId);
       if (!topic) return;
       const subject = subjects.find(s => s.id === topic.subjectId);
 
-      const triageResult = evaluateSaturdayRepair(correct, total, todayStr);
-      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, todayStr);
+      const effectiveDate = testDate || todayStr;
+      const triageResult = evaluateSaturdayRepair(correct, total, effectiveDate);
+      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, effectiveDate);
 
       updateTopic(topicId, {
+        status: 'TRIAGED',
+        discharged: false,
+        t3DueDate: undefined,
         currentBucket: triageResult.bucket,
         priority: triageResult.priority,
+        promotedFromRed: triageResult.bucket === 'YELLOW',
         t14DueDate: triageResult.bucket === 'YELLOW' ? triageResult.nextScheduledDate : undefined,
         saturdayRepairDate:
           triageResult.bucket === 'RED' ? triageResult.nextScheduledDate : undefined,
-        lastStudiedDate: todayStr,
+        lastStudiedDate: effectiveDate,
         reviewCount: (topic.reviewCount || 2) + 1,
         repairScore: {
-          correct,
-          wrong: total - correct,
-          total,
+          correct: triageResult.correct,
+          wrong: triageResult.wrong,
+          total: triageResult.total,
           percentage: triageResult.percentage,
-          date: todayStr
-        }
+          date: effectiveDate
+        },
+        clinicalNotes: notes
+          ? `${topic.clinicalNotes ? topic.clinicalNotes + ' | ' : ''}${notes}`
+          : topic.clinicalNotes
       });
 
       const log: TriageRecord = {
@@ -1274,12 +1453,12 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subjectId: topic.subjectId,
         topicTitle: topic.title,
         subjectName: subject?.name || 'Ders',
-        date: todayStr,
+        date: effectiveDate,
         stage: 'SATURDAY_REPAIR',
-        correct,
-        wrong: total - correct,
+        correct: triageResult.correct,
+        wrong: triageResult.wrong,
         empty: 0,
-        total,
+        total: triageResult.total,
         percentage: triageResult.percentage,
         resultingBucket: triageResult.bucket,
         resultingPriority: triageResult.priority,
@@ -1292,15 +1471,110 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTriageLogs(prev => [log, ...prev]);
       setDailyGoal(prev => ({
         ...prev,
-        completedQuestions: prev.completedQuestions + total,
-        completedStudyMinutes: prev.completedStudyMinutes + 50
+        completedQuestions: prev.completedQuestions + triageResult.total,
+        completedStudyMinutes: prev.completedStudyMinutes + 45
       }));
 
-      appendAutoQuestionLog(topic, '2. Soru Bankası (Cumartesi Onarım)', correct, total, 30, notes);
+      appendAutoQuestionLog(
+        topic,
+        '2. Soru Bankası / DUSBANKASI (Cumartesi Kova Onarım - 30 Soru)',
+        triageResult.correct,
+        triageResult.total,
+        45,
+        notes,
+        effectiveDate
+      );
 
       notifyUser(
         `Cumartesi Onarım Sonucu: ${
-          triageResult.bucket === 'YELLOW' ? 'Sarı Kovaya Terfi Etti!' : 'Kırmızı Kovada Kaldı'
+          triageResult.bucket === 'YELLOW'
+            ? '🟡 Sarı Kovaya Terfi Etti (T+14 3. Banka)!'
+            : '🔴 Kırmızı Kovada Kaldı (Gelecek Cumartesi)'
+        }`,
+        `${topic.title}: ${triageResult.recommendedAction}`
+      );
+    },
+    [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
+  );
+
+  // Deneme Yanlışı T+3 (15 Soruluk) Doğrulama Testi Kaydı (PDF Madde 7.3)
+  const recordExamT3Verification = useCallback(
+    (
+      topicId: string,
+      correct: number,
+      total: number = 15,
+      notes?: string,
+      testDate?: string
+    ) => {
+      const topic = topics.find(t => t.id === topicId);
+      if (!topic) return;
+      const subject = subjects.find(s => s.id === topic.subjectId);
+
+      const effectiveDate = testDate || todayStr;
+      const triageResult = evaluateExamT3Verification(correct, total, effectiveDate);
+      const validationStatus = checkDuplicateAuditLog(triageLogs, topicId, effectiveDate);
+
+      updateTopic(topicId, {
+        t3DueDate: undefined,
+        status: triageResult.bucket === 'GREEN' ? 'DISCHARGED' : 'TRIAGED',
+        currentBucket: triageResult.bucket,
+        priority: triageResult.priority,
+        discharged: triageResult.bucket === 'GREEN',
+        promotedFromRed: false,
+        t14DueDate: undefined,
+        saturdayRepairDate:
+          triageResult.bucket === 'RED' ? triageResult.nextScheduledDate : undefined,
+        lastStudiedDate: effectiveDate,
+        reviewCount: (topic.reviewCount || 1) + 1,
+        clinicalNotes: notes
+          ? `${topic.clinicalNotes ? topic.clinicalNotes + ' | ' : ''}${notes}`
+          : topic.clinicalNotes
+      });
+
+      const log: TriageRecord = {
+        id: `log-${Date.now().toString(36)}`,
+        recordCode: `TEKRAR-${String(triageLogs.length + 1).padStart(4, '0')}`,
+        topicId,
+        subjectId: topic.subjectId,
+        topicTitle: topic.title,
+        subjectName: subject?.name || 'Ders',
+        date: effectiveDate,
+        stage: 'EXAM_T3_VERIFICATION',
+        correct: triageResult.correct,
+        wrong: triageResult.wrong,
+        empty: 0,
+        total: triageResult.total,
+        percentage: triageResult.percentage,
+        resultingBucket: triageResult.bucket,
+        resultingPriority: triageResult.priority,
+        clinicalDiagnosis: triageResult.clinicalDiagnosis,
+        recommendedAction: triageResult.recommendedAction,
+        validationStatus,
+        notes
+      };
+
+      setTriageLogs(prev => [log, ...prev]);
+      setDailyGoal(prev => ({
+        ...prev,
+        completedQuestions: prev.completedQuestions + triageResult.total,
+        completedStudyMinutes: prev.completedStudyMinutes + 15
+      }));
+
+      appendAutoQuestionLog(
+        topic,
+        'DUSBANKASI (Deneme Yanlışı T+3 15 Soru Doğrulama)',
+        triageResult.correct,
+        triageResult.total,
+        15,
+        notes,
+        effectiveDate
+      );
+
+      notifyUser(
+        `Deneme Yanlışı T+3 Doğrulama: ${
+          triageResult.bucket === 'GREEN'
+            ? '🟢 Dosya Kapandı (Taburcu)!'
+            : '🔴 3+ Yanlış! Cumartesi Kırmızı Kovaya Sevk Edildi'
         }`,
         `${topic.title}: ${triageResult.recommendedAction}`
       );
@@ -1709,10 +1983,12 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearTopicScheduledTask,
     deleteTriageLog,
     inlineUpdateTopicPlan,
+    assignTopicBucketDirectly,
     recordT0Completion,
     recordT3Triage,
     recordT14Verification,
     recordSaturdayRepair,
+    recordExamT3Verification,
     addMockExam,
     deleteMockExam,
     addSemanticError,

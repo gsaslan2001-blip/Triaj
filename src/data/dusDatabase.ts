@@ -48,7 +48,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Activity',
     protocol: {
       cognitiveCharacteristics: 'Fizyolojide yüksek mantıksal mekanizma zinciri (4 soru) + Histoloji/Embriyolojide görsel doku ve gelişim evreleri (4 soru).',
-      t0Method: 'Fizyoloji için Detaylandırıcı Sorgulama ("Neden?") + Feynman Tekniği; Histoloji için embriyolojik safhaları Boş Kağıda çiz + T+0 10 soru çöz.',
+      t0Method: 'Fizyoloji için Detaylandırıcı Sorgulama ("Neden?") + Feynman Tekniği; Histoloji için embriyolojik safhaları Boş Kağıda çiz + T+0 20 soru çöz.',
       t3Method: 'T+3 gününde kalan 40 soruyu çöz. ≥%85 (34+ doğru) ise Yeşil Kovaya ayırıp taburcu et.',
       questionBankUsage: '1. Soru Bankası + Çıkmış DUS soruları + DUSBANKASI karma blokları.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Histoloji* & DUS::*Fizyoloji*.'
@@ -70,7 +70,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Dna',
     protocol: {
       cognitiveCharacteristics: 'Yoğun enzim regülatörleri (aktivatör/inhibitör), kofaktörler ve allosterik moleküller.',
-      t0Method: 'Hikayeleştirilmiş mekanizma kancaları (Mnemonic) kur, metabolizma yolağını boş kağıda çiz, T+0 10 soru çöz.',
+      t0Method: 'Hikayeleştirilmiş mekanizma kancaları (Mnemonic) kur, metabolizma yolağını boş kağıda çiz, T+0 20 soru çöz.',
       t3Method: 'T+3 gününde kalan 40 soruyu sınav ciddiyetiyle çöz.',
       questionBankUsage: '1. Soru Bankası + Çıkmış soruların 3 kez taranması.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Biyokimya* (Allosterik enzim ve vitamin tabloları).'
@@ -92,7 +92,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Bug',
     protocol: {
       cognitiveCharacteristics: 'Çok yüksek volatiliteli saf ezber (virüs reseptörleri, toksinler, boyanma özellikleri).',
-      t0Method: 'Fonolojik ve absürt hafıza kancaları (örn. EBV -> CD21, Rino -> ICAM-1) kur ve T+0 10 soru çöz.',
+      t0Method: 'Fonolojik ve absürt hafıza kancaları (örn. EBV -> CD21, Rino -> ICAM-1) kur ve T+0 20 soru çöz.',
       t3Method: 'T+3 testi sonrası zayıf kalan mikroorganizmaları 15 dk oku ve yıldızla.',
       questionBankUsage: '1. Soru Bankası + DUSBANKASI ünite modu.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Mikrobiyoloji* (Virüs-Reseptör ve Bakteri Toksin tabloları).'
@@ -114,7 +114,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Flame',
     protocol: {
       cognitiveCharacteristics: 'Neden-sonuç zinciri ve histopatolojik ayırıcı tanı kontrastı (özellikle Oral Patoloji ve Odontojenik Kistler/Tümörler).',
-      t0Method: 'Detaylandırıcı sorgulama. Benzer kist ve tümörleri yan yana kıyasla, T+0 10 soru çöz.',
+      t0Method: 'Detaylandırıcı sorgulama. Benzer kist ve tümörleri yan yana kıyasla, T+0 20 soru çöz.',
       t3Method: 'T+3 vaka soruları + DUSBANKASI karma tarama.',
       questionBankUsage: '1. ve 2. Soru Bankası entegrasyonu.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Patoloji* (İmmünohistokimyasal belirteçler ve tümör gen mutasyonları).'
@@ -136,7 +136,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Pill',
     protocol: {
       cognitiveCharacteristics: 'Yüksek mantıksal reseptör mekanizmaları + izole yan etki ve kontrendikasyon ezberleri.',
-      t0Method: 'Reseptör üzerinden fizyolojik etkiyi türet ("Neden taşikardi yapar?"). Yan etkileri kancala ve T+0 10 soru çöz.',
+      t0Method: 'Reseptör üzerinden fizyolojik etkiyi türet ("Neden taşikardi yapar?"). Yan etkileri kancala ve T+0 20 soru çöz.',
       t3Method: 'T+3 gecikmeli vaka soruları çözümü.',
       questionBankUsage: '1. Soru Bankası + Çıkmış sorular.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Farmakoloji* (Kontrendikasyon ve spesifik yan etki listeleri).'
@@ -160,7 +160,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Crosshair',
     protocol: {
       cognitiveCharacteristics: 'Cerrahi anatomi, komplikasyonlar, acil yaklaşımlar, Pell-Gregory ve Le Fort sınıflamaları.',
-      t0Method: 'Cerrahi adımları ve sinir hasarı risk haritasını boş kağıda çiz, T+0 10 soru çöz.',
+      t0Method: 'Cerrahi adımları ve sinir hasarı risk haritasını boş kağıda çiz, T+0 20 soru çöz.',
       t3Method: 'T+3 40 Soru. Sarı kova çıkarsa T+14 doğrulama, kırmızı çıkarsa Cumartesi onarım.',
       questionBankUsage: '1. Banka %100, 2. Banka sadece kova onarımlarında, 3. ve 4. Banka vaka hızında.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Cerrahi* (Antibiyotik profilaksi rejimleri, flep endikasyonları ve cerrahi aciller).'
@@ -182,7 +182,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Radio',
     protocol: {
       cognitiveCharacteristics: 'Radyolusent/radyoopak lezyon ayırıcı tanısı, KIBT ve projeksiyon artefakt analizi.',
-      t0Method: 'Görsel radyografi ve lezyon sınırlarını analiz et ("Sabun köpüğü", "Güneş ışını", "Soğan zarı" vb.), T+0 10 soru çöz.',
+      t0Method: 'Görsel radyografi ve lezyon sınırlarını analiz et ("Sabun köpüğü", "Güneş ışını", "Soğan zarı" vb.), T+0 20 soru çöz.',
       t3Method: 'T+3 40 soru çözümü ve Kova Triyajı.',
       questionBankUsage: '4 Soru Bankası ve DUSBANKASI Favoriler.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Radyoloji* (Görsel kartlar ve radyografik patognomonik bulgular).'
@@ -204,7 +204,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Smile',
     protocol: {
       cognitiveCharacteristics: 'Kalsifikasyon/sürme yaşları, IADT luksasyon-avülsiyon tedavi algoritmaları ve süt dişi kavite prensipleri.',
-      t0Method: 'IADT kılavuzu travma karar ağacını çiz. Süt dişi ampütasyon ve kuafaj endikasyonlarını karşılaştır, T+0 10 soru çöz.',
+      t0Method: 'IADT kılavuzu travma karar ağacını çiz. Süt dişi ampütasyon ve kuafaj endikasyonlarını karşılaştır, T+0 20 soru çöz.',
       t3Method: 'T+3 40 soru ile test et.',
       questionBankUsage: '1. Banka + Çıkmışlar + Klinik vaka bankaları.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Pedodonti* (Yer tutucu endikasyon tablosu ve travma splint süreleri).'
@@ -226,7 +226,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Zap',
     protocol: {
       cognitiveCharacteristics: 'Ayırıcı tanı klinik semptomları (soğuk/sıcak testi, perküsyon), Ni-Ti alaşım fazları ve irrigasyon kimyası.',
-      t0Method: 'AAE pulpa-apikal sınıflamasını yan yana vaka tablosu olarak yaz, T+0 10 soru çöz.',
+      t0Method: 'AAE pulpa-apikal sınıflamasını yan yana vaka tablosu olarak yaz, T+0 20 soru çöz.',
       t3Method: 'T+3 40 soru geri çağırma.',
       questionBankUsage: '4 Soru Bankası tam teşekküllü uygulanır.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Endodonti* (NiTi fazları, NaOCl/EDTA etkileşimleri ve rezorpsiyon tipleri).'
@@ -248,7 +248,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Compass',
     protocol: {
       cognitiveCharacteristics: 'SNA/SNB/ANB açısal değerleri, büyüme teorileri, servikal vertebra maturasyonu ve ortodontik kuvvet biyolojisi.',
-      t0Method: 'Sefalometrik referans noktalarını kafa şeması üzerinde işaretle. İskeletsel vs Dişsel ayrımı yap, T+0 10 soru çöz.',
+      t0Method: 'Sefalometrik referans noktalarını kafa şeması üzerinde işaretle. İskeletsel vs Dişsel ayrımı yap, T+0 20 soru çöz.',
       t3Method: 'T+3 40 soru çözümü ve Kova Triyajı.',
       questionBankUsage: '1. Banka + 3. Banka karma modları.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Ortodonti* (Sefalometrik norm değerleri ve fonksiyonel aparey endikasyonları).'
@@ -270,7 +270,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'HeartPulse',
     protocol: {
       cognitiveCharacteristics: '2017 AAP/EFP Sınıflaması milimetrik klinik ataşman/kemik kaybı eşikleri, Gracey küret numaraları ve flep teknikleri.',
-      t0Method: 'Boş A4 kağıdına 4 sütun aç (Sağlıklı, Periodontitis, Mukogingival, Peri-implant) ve kendi zihninden dök, T+0 10 soru çöz.',
+      t0Method: 'Boş A4 kağıdına 4 sütun aç (Sağlıklı, Periodontitis, Mukogingival, Peri-implant) ve kendi zihninden dök, T+0 20 soru çöz.',
       t3Method: 'T+3 vaka soruları (Evre I-IV, Derece A-C ayrımı).',
       questionBankUsage: '1., 2., 3., 4. Soru Bankası klinik derinlikte kullanılır.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Periodontoloji* (2017 sınıflama matrisi ve kemik içi defekt tipleri).'
@@ -314,7 +314,7 @@ export const CANONICAL_DUS_SUBJECTS: DUSSubject[] = [
     iconName: 'Sparkles',
     protocol: {
       cognitiveCharacteristics: 'Adeziv jenerasyonları (monomer-dentin bağı), kompozit doldurucular, amalgam fazları ve beyazlatma kimyası.',
-      t0Method: 'Çapraz Kıyas Tablolarını (Mine vs Dentin, 4-8. Jen Adezivler, Gama-1 vs Gama-2) incele ve T+0 10 soru çöz.',
+      t0Method: 'Çapraz Kıyas Tablolarını (Mine vs Dentin, 4-8. Jen Adezivler, Gama-1 vs Gama-2) incele ve T+0 20 soru çöz.',
       t3Method: 'T+3 kalan 40 soru. Yanlışları ana kitaptan 15 dk yama yap.',
       questionBankUsage: '1. Banka + DUSBANKASI ünite taramaları + Klinik 4. Banka.',
       ankiProtocol: 'Anki Filtreli Deste: DUS::*Restoratif* (Florür PPM merdiveni, pin çapları ve adeziv pH değerleri).'

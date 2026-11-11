@@ -268,7 +268,7 @@ export const GirisRehberiModal: React.FC<{ onClose: () => void }> = ({ onClose }
             <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 space-y-1">
               <div className="font-bold text-slate-900">1. Ebbinghaus Kova Triyajı (Sekme 2-6)</div>
               <p className="text-[11px] text-slate-600">
-                T+0 gününde konu okunur + 10 soru çözülür. 3 gün sonra (T+3) 40 soruluk testte &ge;34 Doğru (&ge;%85) Yeşil Kovaya taburcu edilir; 28-33 Doğru Sarı Kovaya (T+14); &le;27 Doğru Kırmızı Kovaya (Cumartesi Onarım) atanır.
+                T+0 gününde konu çalışılır + 20 soru çözülür (buradaki istatistik kova belirlemez!). 3 gün sonra (T+3) 40 soruluk esas testte &ge;34 Doğru (&ge;%85) Yeşil Kovaya taburcu edilir ve bir daha tekrar sırasına girmez; 28-33 Doğru Sarı Kovaya (T+14); &le;27 Doğru Kırmızı Kovaya (Cumartesi Onarım) atanır.
               </p>
             </div>
 

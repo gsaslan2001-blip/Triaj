@@ -927,15 +927,15 @@ export const DailyPlannerView: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <div className="bg-white border border-slate-200/90 rounded-md p-2">
                   <div className="text-[10px] font-semibold text-slate-500 uppercase">
-                    T+0 Kalibrasyon
+                    T+0 Kalibrasyon (Kova Belirlemez)
                   </div>
                   <div className="text-xs font-mono font-bold text-slate-800 mt-0.5">
-                    10 Soru / Ünite
+                    20 Soru / Ünite
                   </div>
                 </div>
                 <div className="bg-white border border-slate-200/90 rounded-md p-2">
                   <div className="text-[10px] font-semibold text-slate-500 uppercase">
-                    T+3 Esas Test
+                    T+3 Esas Test (Kova Kararı)
                   </div>
                   <div className="text-xs font-mono font-bold text-indigo-700 mt-0.5">
                     40 Soru / Ünite
@@ -968,11 +968,11 @@ export const DailyPlannerView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() =>
-                    updateDailyGoal({ completedQuestions: dailyGoal.completedQuestions + 10 })
+                    updateDailyGoal({ completedQuestions: dailyGoal.completedQuestions + 20 })
                   }
                   className="px-2 py-0.5 bg-white border border-slate-300 rounded text-slate-700 hover:bg-slate-100 font-mono"
                 >
-                  +10
+                  +20 (T+0)
                 </button>
                 <button
                   type="button"
@@ -1055,17 +1055,17 @@ export const DailyPlannerView: React.FC = () => {
                     <div className="text-[11px] text-slate-600 mt-1 flex items-center gap-1.5">
                       {task.bucket === 'NONE' && (
                         <span className="text-indigo-700 font-semibold">
-                          T+3: Kalan 40 Soru Çözülecek
+                          T+3: Esas 40 Soru Çözülecek (Kova Kararı Verilecek)
                         </span>
                       )}
                       {task.bucket === 'YELLOW' && (
                         <span className="text-amber-700 font-semibold">
-                          T+14: 2. Bankadan 20 Soru Doğrulama
+                          T+14: {topic.promotedFromRed ? '3. Bankadan' : '2. Bankadan'} 20-25 Soru Doğrulama
                         </span>
                       )}
                       {task.bucket === 'RED' && (
                         <span className="text-rose-700 font-semibold">
-                          Cumartesi: 25 dk Onarım + 30 Soru
+                          Cumartesi: 25 dk Boş Kağıt Onarımı + 2. Bankadan 30 Soru
                         </span>
                       )}
                     </div>
@@ -1173,12 +1173,12 @@ export const DailyPlannerView: React.FC = () => {
                   <span className="text-[11px] text-slate-500 font-medium">2,5 - 4 Saat</span>
                 </div>
                 <h4 className="text-sm font-bold text-slate-900 mt-1">
-                  Yeni Konu Edinimi &amp; T+0 Kalibrasyonu
+                  Yeni Konu Edinimi &amp; T+0 (20 Soru Kalibrasyon)
                 </h4>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   Ana kitaptan derin kodlama (her 3 sayfada 90 sn özetle). Ünite biter bitmez: 10 dk{' '}
-                  <strong className="text-slate-800">Boş Kağıt (Blurting)</strong> + 1. Bankadan
-                  5&apos;in katları olan 10 soru çöz. Kalan 40 soruyu T+3 gününe bırak!
+                  <strong className="text-slate-800">Boş Kağıt (Blurting)</strong> +{' '}
+                  <strong className="text-slate-800">20 soru çöz</strong> (buradaki istatistik kova belirlemez!). Esas testi 3 gün sonrasına (T+3) kilitle!
                 </p>
               </div>
 
@@ -1214,15 +1214,15 @@ export const DailyPlannerView: React.FC = () => {
                   <span className="text-[11px] text-slate-500 font-medium">1,5 - 2,5 Saat</span>
                 </div>
                 <h4 className="text-sm font-bold text-slate-900 mt-1">
-                  T+3 Gecikmeli Geri Çağırma &amp; Kova Triyajı
+                  T+3 Gecikmeli Geri Çağırma &amp; Esas Kova Triyajı
                 </h4>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   3 gün önce çalışılan konunun{' '}
-                  <strong className="text-slate-800">kalan 40 sorusu</strong> konu okunmadan
-                  doğrudan çözülür. 40 sorudaki skora göre ünite{' '}
-                  <span className="text-emerald-700 font-semibold">Yeşil (≥34)</span>,{' '}
-                  <span className="text-amber-700 font-semibold">Sarı (28-33)</span> veya{' '}
-                  <span className="text-rose-700 font-semibold">Kırmızı (≤27)</span> kovaya atanır.
+                  <strong className="text-slate-800">esas 40 sorusu</strong> konu okunmadan
+                  doğrudan çözülür. Performansa göre ünite{' '}
+                  <span className="text-emerald-700 font-semibold">Yeşil (≥34 — bir daha tekrar sırasına girmez!)</span>,{' '}
+                  <span className="text-amber-700 font-semibold">Sarı (28-33 — T+14)</span> veya{' '}
+                  <span className="text-rose-700 font-semibold">Kırmızı (≤27 — Cumartesi Onarım)</span> kovaya atanır.
                 </p>
               </div>
 
@@ -1303,7 +1303,7 @@ export const DailyPlannerView: React.FC = () => {
             type="text"
             value={newChecklistText}
             onChange={e => setNewChecklistText(e.target.value)}
-            placeholder="Yeni günlük görev ekleyin (örn: Farmakoloji otonom sinir sistemi T+0 10 soru)..."
+            placeholder="Yeni günlük görev ekleyin (örn: Farmakoloji otonom sinir sistemi T+0 20 soru)..."
             className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400"
           />
           <button

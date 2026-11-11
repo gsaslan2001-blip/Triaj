@@ -632,14 +632,16 @@ export const SubjectDatabaseView: React.FC = () => {
                   const nextTarget = getTopicNextTargetDate(topic);
                   const actionText =
                     topic.currentBucket === 'GREEN' || topic.discharged
-                      ? 'TABURCU (Sadece Branş Denemesi)'
+                      ? 'TABURCU (Tekrar Sırasına Bir Daha Girmez)'
                       : topic.currentBucket === 'YELLOW'
-                      ? '[SARI KOVA] 2. Banka 1 Test (20 Soru)'
+                      ? topic.promotedFromRed
+                        ? '[SARI KOVA] 3. Banka 1 Test (20-25 Soru)'
+                        : '[SARI KOVA] 2. Banka 1 Test (20-25 Soru)'
                       : topic.currentBucket === 'RED'
-                      ? '[KIRMIZI KOVA] Cmt 25dk Onarım + 30 Soru'
+                      ? '[KIRMIZI KOVA] Cmt 25dk Boş Kağıt + 30 Soru'
                       : topic.status === 'T0_DONE'
-                      ? 'T+3 Gününde 40 Soru Çözülecek'
-                      : 'T+0 Konu + 10 Soru Bekleniyor';
+                      ? 'T+3 Gününde 40 Soru Çözülecek (Kova Kararı)'
+                      : 'T+0 Konu + 20 Soru Bekleniyor';
 
                   return (
                     <tr key={topic.id} className="hover:bg-slate-50/80 transition-colors">

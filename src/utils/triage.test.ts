@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  evaluateT0Calibration,
   evaluateT3Triage,
   evaluateT14Verification,
   evaluateSaturdayRepair,
+  evaluateExamT3Verification,
   addDays,
   getNextSaturday,
   generateNotifications,
@@ -12,7 +14,21 @@ import {
 import { DUSSubject, TopicUnit } from '../types/dus';
 import { CANONICAL_DUS_SUBJECTS, INITIAL_TOPIC_UNITS } from '../data/dusDatabase';
 
-test('T+3 Triage correctly assigns GREEN bucket for >= 85% (34-40 correct)', () => {
+test('T+0 Calibration (20 questions) never determines a bucket regardless of score and strictly locks T+3', () => {
+  const lowScore = evaluateT0Calibration(5, 20, '2026-11-10');
+  assert.equal(lowScore.bucket, 'NONE');
+  assert.equal(lowScore.affectsBucket, false);
+  assert.equal(lowScore.scheduleType, 'T3_LOCKED');
+  assert.equal(lowScore.nextScheduledDate, '2026-11-13');
+
+  const highScore = evaluateT0Calibration(20, 20, '2026-11-10');
+  assert.equal(highScore.bucket, 'NONE');
+  assert.equal(highScore.affectsBucket, false);
+  assert.equal(highScore.scheduleType, 'T3_LOCKED');
+  assert.equal(highScore.nextScheduledDate, '2026-11-13');
+});
+
+test('T+3 Triage correctly assigns GREEN bucket for >= 85% (34-40 correct) and permanently discharges the topic', () => {
   const result = evaluateT3Triage(35, 40, '2026-11-10');
   assert.equal(result.bucket, 'GREEN');
   assert.equal(result.priority, 'P4_LOW');
@@ -21,12 +37,13 @@ test('T+3 Triage correctly assigns GREEN bucket for >= 85% (34-40 correct)', () 
   assert.equal(result.nextScheduledDate, undefined);
 });
 
-test('T+3 Triage correctly assigns YELLOW bucket for 70%-84% (28-33 correct) and schedules T+14', () => {
+test('T+3 Triage correctly assigns YELLOW bucket for 70%-84% (28-33 correct) and schedules T+14 from 2nd Question Bank', () => {
   const result = evaluateT3Triage(30, 40, '2026-11-10');
   assert.equal(result.bucket, 'YELLOW');
   assert.equal(result.priority, 'P2_HIGH');
   assert.equal(result.percentage, 75);
   assert.equal(result.scheduleType, 'T14_VERIFICATION');
+  assert.ok(result.recommendedBank?.includes('2. Soru Bankası'));
   // 2026-11-10 + 14 days = 2026-11-24
   assert.equal(result.nextScheduledDate, '2026-11-24');
 });
@@ -53,11 +70,12 @@ test('T+14 Verification demotes to RED on < 70%', () => {
   assert.equal(result.scheduleType, 'SATURDAY_REPAIR');
 });
 
-test('Saturday Repair promotes to YELLOW on >= 80%', () => {
+test('Saturday Repair promotes to YELLOW on >= 80% and schedules T+14 from 3rd Question Bank', () => {
   const result = evaluateSaturdayRepair(25, 30, '2026-11-14'); // ~83%
   assert.equal(result.bucket, 'YELLOW');
   assert.equal(result.scheduleType, 'T14_VERIFICATION');
   assert.equal(result.nextScheduledDate, '2026-11-28');
+  assert.ok(result.recommendedBank?.includes('3. Soru Bankası'));
 });
 
 test('Saturday Repair stays RED on < 80%', () => {
@@ -66,6 +84,17 @@ test('Saturday Repair stays RED on < 80%', () => {
   assert.equal(result.scheduleType, 'SATURDAY_REPAIR');
   // Next Saturday from Saturday 2026-11-14 is 2026-11-21
   assert.equal(result.nextScheduledDate, '2026-11-21');
+});
+
+test('Exam T+3 Verification (15 questions, PDF 7.3) discharges on >= 13 correct and sends to Saturday RED on >= 3 wrong', () => {
+  const passResult = evaluateExamT3Verification(13, 15, '2026-11-10');
+  assert.equal(passResult.bucket, 'GREEN');
+  assert.equal(passResult.scheduleType, 'DISCHARGED');
+
+  const failResult = evaluateExamT3Verification(12, 15, '2026-11-10'); // 3 wrong
+  assert.equal(failResult.bucket, 'RED');
+  assert.equal(failResult.scheduleType, 'SATURDAY_REPAIR');
+  assert.equal(failResult.nextScheduledDate, '2026-11-14');
 });
 
 test('Date helper addDays works reliably across month bounds', () => {
