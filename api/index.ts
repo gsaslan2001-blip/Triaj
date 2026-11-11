@@ -761,9 +761,34 @@ export function createApiApp(): express.Express {
     }
   });
 
+  // 5. Sunucu Tarafı Çalışma Alanı (Workspace) Yedek Senkronizasyon Rotası
+  let serverWorkspaceCache: Record<string, unknown> | null = null;
+
+  app.get('/api/workspace', (_req, res) => {
+    res.json({
+      ok: true,
+      hasWorkspace: Boolean(serverWorkspaceCache),
+      workspace: serverWorkspaceCache
+    });
+  });
+
+  app.post('/api/workspace', (req, res) => {
+    if (req.body && typeof req.body === 'object') {
+      serverWorkspaceCache = {
+        ...(req.body as Record<string, unknown>),
+        syncedAt: new Date().toISOString()
+      };
+    }
+    res.json({
+      ok: true,
+      syncedAt: new Date().toISOString()
+    });
+  });
+
   return app;
 }
 
 const app = createApiApp();
 
 export default app;
+

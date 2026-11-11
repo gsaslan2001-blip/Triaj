@@ -56,12 +56,14 @@ export const Header: React.FC<HeaderProps> = ({
     cloudUser,
     cloudSyncStatus,
     lastCloudSyncedAt,
+    cloudDomainNotice,
     signInToCloud,
     signOutOfCloud,
     forceCloudSync
   } = useDUS();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   // DUS Sınav Tarihi Geri Sayımı (SSOT Parametresi)
   const examDate = new Date(`${systemParams.examDate}T10:15:00`);
@@ -97,14 +99,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-6">
         {/* Üst Komuta Satırı: Marka Kimliği — Ana Sekmeler — Aksiyon & Araç Çubuğu */}
-        <div className="flex items-center justify-between gap-3 h-15">
+        <div className="flex items-center justify-between gap-2 h-15">
           {/* Sol: Marka, Triyaj Logosu & Proje Açıklaması */}
           <button
             type="button"
             onClick={() => setActiveTab('planner')}
-            className="flex items-center gap-2.5 shrink-0 text-left group focus:outline-hidden"
+            className="flex items-center gap-2 shrink-0 text-left group focus:outline-hidden"
             aria-label="Triyaj Ana Sayfa"
           >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 via-indigo-500/15 to-rose-500/20 border border-emerald-500/35 group-hover:border-emerald-400/60 flex items-center justify-center shrink-0 shadow-2xs transition-colors">
@@ -150,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
                   DUS · {daysLeft}G
                 </span>
               </div>
-              <div className="text-[11px] text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
+              <div className="text-[11px] text-slate-400 flex items-center gap-1 whitespace-nowrap">
                 <span>Bilişsel Kova &amp; Çalışma Sistemi</span>
               </div>
             </div>
@@ -164,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('planner')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'planner'
                   ? 'bg-white text-slate-950 font-semibold shadow-2xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
@@ -177,7 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('subjects')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'subjects'
                   ? 'bg-white text-slate-950 font-semibold shadow-2xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
@@ -190,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('notifications')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'notifications'
                   ? 'bg-white text-slate-950 font-semibold shadow-2xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
@@ -210,7 +212,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('analytics')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'analytics'
                   ? 'bg-white text-slate-950 font-semibold shadow-2xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
@@ -223,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('report')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'report'
                   ? 'bg-white text-slate-950 font-semibold shadow-2xs'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
@@ -250,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => forceCloudSync()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-700/60 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-700/60 rounded-lg transition-colors whitespace-nowrap shrink-0"
                 title={
                   lastCloudSyncedAt
                     ? `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Google Hesabı'}) · Son Eşitleme: ${lastCloudSyncedAt}`
@@ -270,7 +272,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => signInToCloud()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
                 title="Cihazlar arası gerçek zamanlı bulut senkronizasyonu için Google ile bağlan"
               >
                 <Cloud className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -281,7 +283,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenDeepSeek}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-2xs"
+              className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-2xs"
               title="Deploy.com DeepSeek v4.1 Flash (1017) Bilişsel DUS Motoru"
             >
               <Cpu className="w-3.5 h-3.5 shrink-0" />
@@ -293,7 +295,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenSystemParams}
-                className="px-2 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors flex items-center gap-1 whitespace-nowrap"
+                className="px-1.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors flex items-center gap-1 whitespace-nowrap"
                 title="Hedef Net ve Sistem Parametreleri (SSOT)"
               >
                 <Sliders className="w-3.5 h-3.5 text-slate-400" />
@@ -349,7 +351,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-xs text-slate-800">
+                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-xs text-slate-800">
                     {cloudUser ? (
                       <>
                         <div className="px-4 py-2 border-b border-slate-100">
@@ -359,6 +361,27 @@ export const Header: React.FC<HeaderProps> = ({
                           <div className="text-[11px] text-slate-500 truncate">
                             {cloudUser.email}
                           </div>
+                          {cloudDomainNotice && (
+                            <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-amber-900 space-y-1.5">
+                              <div className="font-semibold">
+                                Yerel Sunucu &amp; Bulut Yedeği Aktif
+                              </div>
+                              <p className="leading-snug text-amber-800">
+                                Google Popup için Firebase Console &gt; Auth &gt; Settings &gt; Authorized domains listesine şu alanı ekleyebilirsiniz:
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(cloudDomainNotice);
+                                  setCopiedDomain(true);
+                                  setTimeout(() => setCopiedDomain(false), 2000);
+                                }}
+                                className="w-full px-2 py-1 rounded bg-white hover:bg-amber-100 border border-amber-300 font-mono font-bold text-amber-950 truncate text-left"
+                              >
+                                {copiedDomain ? '✓ Alan Adı Kopyalandı!' : `📋 ${cloudDomainNotice}`}
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"

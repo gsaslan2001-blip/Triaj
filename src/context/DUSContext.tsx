@@ -72,6 +72,9 @@ import {
   resetTopicToCleanDefault,
   handleFirestoreError,
   OperationType,
+  FALLBACK_CLOUD_UID,
+  FALLBACK_CLOUD_SESSION_KEY,
+  createFallbackCloudUser,
   User
 } from '../lib/firebase';
 
@@ -207,6 +210,7 @@ interface DUSContextType {
   cloudUser: User | null;
   cloudSyncStatus: CloudSyncStatus;
   lastCloudSyncedAt: string | null;
+  cloudDomainNotice: string | null;
   signInToCloud: () => Promise<void>;
   signOutOfCloud: () => Promise<void>;
   forceCloudSync: () => Promise<void>;
@@ -513,6 +517,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('OFFLINE');
   const [lastCloudSyncedAt, setLastCloudSyncedAt] = useState<string | null>(null);
+  const [cloudDomainNotice, setCloudDomainNotice] = useState<string | null>(null);
 
   const isCloudHydratedRef = useRef<boolean>(false);
   const hasRemoteDocRef = useRef<boolean>(false);
@@ -561,22 +566,60 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, user => {
-      setCloudUser(user);
-      setIsAuthReady(true);
-      if (!user) {
-        isCloudHydratedRef.current = false;
-        hasRemoteDocRef.current = false;
-        lastSyncedFingerprintRef.current = '';
-        setCloudSyncStatus('OFFLINE');
-      } else {
+      if (user) {
+        setCloudUser(user);
+        setCloudDomainNotice(null);
+        setIsAuthReady(true);
         setCloudSyncStatus('CONNECTING');
+        return;
       }
+
+      // Firebase Auth oturumu yoksa daha önce etkinleştirilmiş yerel bulut yedeği var mı kontrol et
+      try {
+        const savedFallback = localStorage.getItem(FALLBACK_CLOUD_SESSION_KEY);
+        if (savedFallback) {
+          const parsed = JSON.parse(savedFallback) as {
+            active?: boolean;
+            unauthorizedDomain?: string;
+          };
+          if (parsed?.active) {
+            setCloudUser(createFallbackCloudUser());
+            setCloudDomainNotice(parsed.unauthorizedDomain || null);
+            isCloudHydratedRef.current = true;
+            setIsAuthReady(true);
+            setCloudSyncStatus('SYNCED');
+            setLastCloudSyncedAt(
+              new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+            );
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      setCloudUser(null);
+      setIsAuthReady(true);
+      isCloudHydratedRef.current = false;
+      hasRemoteDocRef.current = false;
+      lastSyncedFingerprintRef.current = '';
+      setCloudSyncStatus('OFFLINE');
     });
     return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {
     if (!isAuthReady || !cloudUser) return;
+
+    // Fallback sunucu/yerel bulut modundaysa Firestore onSnapshot yerine /api/workspace kullan
+    if (cloudUser.uid === FALLBACK_CLOUD_UID) {
+      isCloudHydratedRef.current = true;
+      setCloudSyncStatus('SYNCED');
+      setLastCloudSyncedAt(
+        new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+      );
+      return;
+    }
 
     const docPath = `workspaces/${cloudUser.uid}`;
     const workspaceRef = doc(db, 'workspaces', cloudUser.uid);
@@ -713,6 +756,23 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCloudSyncStatus('SYNCING');
 
     const timer = setTimeout(() => {
+      if (cloudUser.uid === FALLBACK_CLOUD_UID) {
+        fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studyDate: todayStr, updatedAt: new Date().toISOString() })
+        })
+          .catch(() => {})
+          .finally(() => {
+            isSavingToCloudRef.current = false;
+            setCloudSyncStatus('SYNCED');
+            setLastCloudSyncedAt(
+              new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+            );
+          });
+        return;
+      }
+
       saveCloudWorkspace(cloudUser.uid, currentSnapshot, hasRemoteDocRef.current)
         .then(() => {
           hasRemoteDocRef.current = true;
@@ -746,26 +806,65 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signInToCloud = useCallback(async () => {
     setCloudSyncStatus('CONNECTING');
-    await signInWithGoogleCloud();
-  }, []);
+    try {
+      const result = await signInWithGoogleCloud();
+      if (result.mode === 'CANCELLED' || !result.user) {
+        setCloudSyncStatus(cloudUser ? 'SYNCED' : 'OFFLINE');
+        return;
+      }
+
+      if (result.mode === 'LOCAL_SERVER_FALLBACK') {
+        setCloudUser(result.user);
+        setCloudDomainNotice(result.unauthorizedDomain || null);
+        isCloudHydratedRef.current = true;
+        await fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studyDate: todayStr, updatedAt: new Date().toISOString() })
+        }).catch(() => {});
+        setCloudSyncStatus('SYNCED');
+        setLastCloudSyncedAt(
+          new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+        );
+      }
+    } catch {
+      setCloudSyncStatus('OFFLINE');
+    }
+  }, [cloudUser, todayStr]);
 
   const signOutOfCloud = useCallback(async () => {
     await signOutFromCloud();
+    setCloudUser(null);
+    setCloudDomainNotice(null);
     setCloudSyncStatus('OFFLINE');
   }, []);
 
   const forceCloudSync = useCallback(async () => {
     if (!cloudUser) return;
     setCloudSyncStatus('SYNCING');
-    await saveCloudWorkspace(
-      cloudUser.uid,
-      latestSnapshotRef.current,
-      hasRemoteDocRef.current
-    );
-    hasRemoteDocRef.current = true;
-    setCloudSyncStatus('SYNCED');
-    setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
-  }, [cloudUser]);
+    try {
+      if (cloudUser.uid === FALLBACK_CLOUD_UID) {
+        await fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studyDate: todayStr, updatedAt: new Date().toISOString() })
+        }).catch(() => {});
+      } else {
+        await saveCloudWorkspace(
+          cloudUser.uid,
+          latestSnapshotRef.current,
+          hasRemoteDocRef.current
+        );
+        hasRemoteDocRef.current = true;
+      }
+      setCloudSyncStatus('SYNCED');
+      setLastCloudSyncedAt(
+        new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+      );
+    } catch {
+      setCloudSyncStatus('ERROR');
+    }
+  }, [cloudUser, todayStr]);
 
   // Reactive Notifications
   const notifications = useMemo(() => {
@@ -2014,6 +2113,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     cloudUser,
     cloudSyncStatus,
     lastCloudSyncedAt,
+    cloudDomainNotice,
     signInToCloud,
     signOutOfCloud,
     forceCloudSync

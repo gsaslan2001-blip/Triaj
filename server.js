@@ -1,13 +1,14 @@
 // server.ts
-import "dotenv/config";
+import dotenv2 from "dotenv";
 import express2 from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 
 // api/index.ts
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
+dotenv.config({ override: true });
 var DEPLOY_DEEPSEEK_MODEL = "deepseek-ai/deepseek-v4.1-flash-1017";
 var DEPLOY_BASE_URL = "https://api-cdn.deploy.com/api/v1";
 var LOCKED_MAX_COMPLETION_TOKENS = 32768;
@@ -323,13 +324,33 @@ ${rawReasoning}` : ""),
     }
   };
 }
-var activeAccessToken = process.env.TICKTICK_ACCESS_TOKEN || "f91fae7a-ee3d-4452-bbd7-42a1c1cea335";
-var activeRefreshToken = process.env.TICKTICK_REFRESH_TOKEN || "";
-var clientId = process.env.TICKTICK_CLIENT_ID || "uA1j1GZtLknH5I89cI";
-var clientSecret = process.env.TICKTICK_CLIENT_SECRET || "gfZY577hM8TF2m6u72sKlITUaiKIBbdh";
-var deployApiKey = process.env.DEPLOY_API_KEY || "8p68e3DgJyuHUdhKnrfrAg==";
-var deployBaseUrl = (process.env.DEPLOY_BASE_URL || DEPLOY_BASE_URL).replace(/\/$/, "");
-var deployModel = process.env.DEPLOY_MODEL || DEPLOY_DEEPSEEK_MODEL;
+function resolveEnvValue(rawVal, fallback) {
+  if (!rawVal) return fallback;
+  const trimmed = rawVal.trim();
+  if (!trimmed || trimmed.startsWith("YOUR_") || trimmed.startsWith("MY_") || trimmed.startsWith("<") || trimmed === "undefined" || trimmed === "null") {
+    return fallback;
+  }
+  return trimmed;
+}
+var activeAccessToken = resolveEnvValue(
+  process.env.TICKTICK_ACCESS_TOKEN,
+  "f91fae7a-ee3d-4452-bbd7-42a1c1cea335"
+);
+var activeRefreshToken = resolveEnvValue(process.env.TICKTICK_REFRESH_TOKEN, "");
+var clientId = resolveEnvValue(process.env.TICKTICK_CLIENT_ID, "uA1j1GZtLknH5I89cI");
+var clientSecret = resolveEnvValue(
+  process.env.TICKTICK_CLIENT_SECRET,
+  "gfZY577hM8TF2m6u72sKlITUaiKIBbdh"
+);
+var deployApiKey = resolveEnvValue(
+  process.env.DEPLOY_API_KEY,
+  "8p68e3DgJyuHUdhKnrfrAg=="
+);
+var deployBaseUrl = resolveEnvValue(
+  process.env.DEPLOY_BASE_URL,
+  DEPLOY_BASE_URL
+).replace(/\/$/, "");
+var deployModel = resolveEnvValue(process.env.DEPLOY_MODEL, DEPLOY_DEEPSEEK_MODEL);
 var cachedRawRecords = null;
 var lastCacheTimestamp = 0;
 function getRedirectUri(req) {
@@ -338,7 +359,7 @@ function getRedirectUri(req) {
   }
   const forwardedProto = req.headers["x-forwarded-proto"];
   const protocol = typeof forwardedProto === "string" ? forwardedProto.split(",")[0].trim() : req.protocol;
-  const appUrl = process.env.APP_URL && process.env.APP_URL !== "MY_APP_URL" ? process.env.APP_URL.replace(/\/$/, "") : `${protocol}://${req.get("host")}`;
+  const appUrl = process.env.APP_URL && !process.env.APP_URL.startsWith("MY_") && !process.env.APP_URL.startsWith("YOUR_") ? process.env.APP_URL.replace(/\/$/, "") : `${protocol}://${req.get("host")}`;
   return `${appUrl}/auth/callback`;
 }
 function formatTickTickDateParam(date, isEndOfDay) {
@@ -435,7 +456,7 @@ function createApiApp() {
           }
         }
       } catch (err) {
-        console.error("TickTick OAuth token exchange error:", err);
+        console.warn("TickTick OAuth token exchange warning:", err);
       }
     }
     res.send(`
@@ -461,10 +482,10 @@ function createApiApp() {
   };
   app2.get(["/auth/callback", "/auth/callback/"], oauthCallbackHandler);
   app2.get("/api/ticktick/focus", async (req, res) => {
+    const requestedDate = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : void 0;
+    const todayStr = toTurkeyDateString((/* @__PURE__ */ new Date()).toISOString());
     try {
       const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
-      const requestedDate = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : void 0;
-      const todayStr = toTurkeyDateString((/* @__PURE__ */ new Date()).toISOString());
       const records = await fetchAllTickTickFocusRecords(forceRefresh);
       const summary = buildTickTickFocusSummary(records, todayStr, requestedDate);
       res.json({
@@ -472,10 +493,16 @@ function createApiApp() {
         hasRefreshToken: Boolean(activeRefreshToken)
       });
     } catch (error) {
-      console.error("TickTick Focus API Error:", error);
-      res.status(502).json({
-        connected: false,
-        error: error instanceof Error ? error.message : "TickTick verisi \xE7ekilemedi."
+      const fallbackSummary = buildTickTickFocusSummary(
+        cachedRawRecords || [],
+        todayStr,
+        requestedDate
+      );
+      res.status(200).json({
+        ...fallbackSummary,
+        connected: Boolean(cachedRawRecords && cachedRawRecords.length > 0),
+        hasRefreshToken: Boolean(activeRefreshToken),
+        warning: error instanceof Error ? error.message : "TickTick verisi \xE7ekilemedi."
       });
     }
   });
@@ -515,11 +542,32 @@ function createApiApp() {
       });
     }
   });
+  let serverWorkspaceCache = null;
+  app2.get("/api/workspace", (_req, res) => {
+    res.json({
+      ok: true,
+      hasWorkspace: Boolean(serverWorkspaceCache),
+      workspace: serverWorkspaceCache
+    });
+  });
+  app2.post("/api/workspace", (req, res) => {
+    if (req.body && typeof req.body === "object") {
+      serverWorkspaceCache = {
+        ...req.body,
+        syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+    }
+    res.json({
+      ok: true,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  });
   return app2;
 }
 var app = createApiApp();
 
 // server.ts
+dotenv2.config({ override: true });
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 var PORT = 3e3;

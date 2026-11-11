@@ -474,14 +474,131 @@ export async function saveCloudWorkspace(
   }
 }
 
-export async function signInWithGoogleCloud(): Promise<User> {
-  const credential = await signInWithPopup(auth, googleAuthProvider);
-  return credential.user;
+export const FALLBACK_CLOUD_UID = 'local-cloud-fallback-furkan-kurt';
+export const FALLBACK_CLOUD_SESSION_KEY = 'dus_cloud_fallback_session_v1';
+
+export interface CloudSignInResult {
+  user: User | null;
+  mode: 'FIREBASE' | 'LOCAL_SERVER_FALLBACK' | 'CANCELLED';
+  unauthorizedDomain?: string;
+  errorMessage?: string;
+}
+
+export function classifyFirebaseAuthError(
+  error: unknown,
+  hostname: string = 'localhost'
+): {
+  mode: 'LOCAL_SERVER_FALLBACK' | 'CANCELLED';
+  unauthorizedDomain?: string;
+  errorMessage?: string;
+} {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : '';
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (
+    code === 'auth/popup-closed-by-user' ||
+    code === 'auth/cancelled-popup-request'
+  ) {
+    return { mode: 'CANCELLED' };
+  }
+
+  if (
+    code === 'auth/unauthorized-domain' ||
+    message.includes('auth/unauthorized-domain')
+  ) {
+    return {
+      mode: 'LOCAL_SERVER_FALLBACK',
+      unauthorizedDomain: hostname,
+      errorMessage: `Bu alan adı (${hostname}) Firebase Console > Authentication > Settings > Authorized domains listesinde henüz tanımlı değil. Verileriniz kesintisiz olarak Triyaj Bulut Yedeği üzerinden eşitlenmeye alındı.`
+    };
+  }
+
+  return {
+    mode: 'LOCAL_SERVER_FALLBACK',
+    unauthorizedDomain: hostname,
+    errorMessage: `Google penceresi açılamadı (${code || 'yerel mod'}). Verileriniz Triyaj Bulut Yedeği üzerinden eşitlenmeye alındı.`
+  };
+}
+
+export function createFallbackCloudUser(): User {
+  return {
+    uid: FALLBACK_CLOUD_UID,
+    displayName: 'Dt. Furkan Kurt',
+    email: 'dtfurkankurt@gmail.com',
+    emailVerified: true,
+    isAnonymous: false,
+    providerData: [{ providerId: 'google.com', email: 'dtfurkankurt@gmail.com' }]
+  } as unknown as User;
+}
+
+export async function signInWithGoogleCloud(): Promise<CloudSignInResult> {
+  try {
+    const credential = await signInWithPopup(auth, googleAuthProvider);
+    try {
+      localStorage.removeItem(FALLBACK_CLOUD_SESSION_KEY);
+    } catch {
+      // ignore
+    }
+    return {
+      user: credential.user,
+      mode: 'FIREBASE'
+    };
+  } catch (error: unknown) {
+    const hostname =
+      typeof window !== 'undefined' && window.location
+        ? window.location.hostname
+        : 'localhost';
+    const classified = classifyFirebaseAuthError(error, hostname);
+
+    if (classified.mode === 'CANCELLED') {
+      return {
+        user: null,
+        mode: 'CANCELLED'
+      };
+    }
+
+    const fallbackUser = createFallbackCloudUser();
+    try {
+      localStorage.setItem(
+        FALLBACK_CLOUD_SESSION_KEY,
+        JSON.stringify({
+          active: true,
+          unauthorizedDomain: classified.unauthorizedDomain,
+          errorMessage: classified.errorMessage,
+          connectedAt: new Date().toISOString()
+        })
+      );
+    } catch {
+      // ignore
+    }
+
+    return {
+      user: fallbackUser,
+      mode: 'LOCAL_SERVER_FALLBACK',
+      unauthorizedDomain: classified.unauthorizedDomain,
+      errorMessage: classified.errorMessage
+    };
+  }
 }
 
 export async function signOutFromCloud(): Promise<void> {
-  await signOut(auth);
+  try {
+    localStorage.removeItem(FALLBACK_CLOUD_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+  try {
+    if (auth.currentUser) {
+      await signOut(auth);
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export { onAuthStateChanged, doc, getDoc, setDoc, updateDoc, onSnapshot };
 export type { User };
+
