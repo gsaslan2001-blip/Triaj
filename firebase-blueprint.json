@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "WorkspaceDocument": {
+      "title": "WorkspaceDocument",
+      "description": "Authenticated dentist user's complete DUS 2027 strategic workspace state stored as native Firestore maps.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the workspace owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "description": "Schema version of the synchronized DUS 2027 state."
+        },
+        "studyDate": {
+          "type": "string",
+          "description": "Active study date in YYYY-MM-DD format.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "streakDays": {
+          "type": "integer",
+          "description": "Active consecutive study streak in days."
+        },
+        "stateMap": {
+          "type": "object",
+          "description": "Native Firestore map containing topicsById, recordsById, studyPlansById, questionLogsById, mockExamsById, topicTaxonomyById, semanticErrorsById, and ankiStats."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server timestamp when the workspace document was initialized."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest synchronization write."
+        }
+      },
+      "required": [
+        "ownerId",
+        "schemaVersion",
+        "studyDate",
+        "streakDays",
+        "stateMap",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/workspaces/{userId}": {
+      "schema": {
+        "$ref": "#/entities/WorkspaceDocument"
+      },
+      "description": "Single-document cloud synchronization workspace scoped strictly to the authenticated user's UID."
+    }
+  }
+}

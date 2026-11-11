@@ -3,7 +3,7 @@
  * Sürükle-Bırak Takvim ve FSRS State Yönetimi (SSOT Context)
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   DUSSubject,
   TopicUnit,
@@ -53,6 +53,22 @@ import {
   checkDuplicateAuditLog,
   CANONICAL_16_BRANCHES
 } from '../utils/analytics';
+import {
+  auth,
+  db,
+  doc,
+  onSnapshot,
+  onAuthStateChanged,
+  signInWithGoogleCloud,
+  signOutFromCloud,
+  saveCloudWorkspace,
+  parseFirestoreWorkspaceDoc,
+  handleFirestoreError,
+  OperationType,
+  User
+} from '../lib/firebase';
+
+export type CloudSyncStatus = 'OFFLINE' | 'CONNECTING' | 'SYNCING' | 'SYNCED' | 'ERROR';
 
 interface DUSContextType {
   // Core State
@@ -141,10 +157,16 @@ interface DUSContextType {
   requestBrowserNotificationPermission: () => Promise<boolean>;
   toggleSound: () => void;
 
-  // System Actions
+  // System & Cloud Sync Actions
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
   resetToInitialData: () => void;
+  cloudUser: User | null;
+  cloudSyncStatus: CloudSyncStatus;
+  lastCloudSyncedAt: string | null;
+  signInToCloud: () => Promise<void>;
+  signOutOfCloud: () => Promise<void>;
+  forceCloudSync: () => Promise<void>;
 }
 
 const DUSContext = createContext<DUSContextType | undefined>(undefined);
@@ -505,6 +527,213 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(EXTENDED_STORAGE_KEYS.SYSTEM_PARAMS, JSON.stringify(systemParams));
     } catch {}
   }, [systemParams]);
+
+  // --- Firebase Cloud Synchronization (Cross-Device Real-Time Persistence) ---
+  const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('OFFLINE');
+  const [lastCloudSyncedAt, setLastCloudSyncedAt] = useState<string | null>(null);
+
+  const isCloudHydratedRef = useRef<boolean>(false);
+  const hasRemoteDocRef = useRef<boolean>(false);
+  const suppressNextCloudWriteRef = useRef<boolean>(false);
+  const latestSnapshotRef = useRef({
+    studyDate: todayStr,
+    streakDays: 14,
+    topics,
+    triageLogs,
+    dailyGoal,
+    mockExams,
+    semanticErrors,
+    questionLogs,
+    topicTaxonomy,
+    ankiSnapshot,
+    systemParams
+  });
+
+  useEffect(() => {
+    latestSnapshotRef.current = {
+      studyDate: todayStr,
+      streakDays: 14,
+      topics,
+      triageLogs,
+      dailyGoal,
+      mockExams,
+      semanticErrors,
+      questionLogs,
+      topicTaxonomy,
+      ankiSnapshot,
+      systemParams
+    };
+  }, [
+    todayStr,
+    topics,
+    triageLogs,
+    dailyGoal,
+    mockExams,
+    semanticErrors,
+    questionLogs,
+    topicTaxonomy,
+    ankiSnapshot,
+    systemParams
+  ]);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, user => {
+      setCloudUser(user);
+      setIsAuthReady(true);
+      if (!user) {
+        isCloudHydratedRef.current = false;
+        hasRemoteDocRef.current = false;
+        setCloudSyncStatus('OFFLINE');
+      } else {
+        setCloudSyncStatus('CONNECTING');
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthReady || !cloudUser) return;
+
+    const docPath = `workspaces/${cloudUser.uid}`;
+    const workspaceRef = doc(db, 'workspaces', cloudUser.uid);
+
+    const unsubscribeSnapshot = onSnapshot(
+      workspaceRef,
+      snapshot => {
+        if (!snapshot.exists()) {
+          // Bulutta henüz kayıt yoksa mevcut cihazdaki verileri buluta yükle
+          hasRemoteDocRef.current = false;
+          isCloudHydratedRef.current = true;
+          setCloudSyncStatus('SYNCING');
+          saveCloudWorkspace(cloudUser.uid, latestSnapshotRef.current, false)
+            .then(() => {
+              hasRemoteDocRef.current = true;
+              setCloudSyncStatus('SYNCED');
+              setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+            })
+            .catch(() => {
+              setCloudSyncStatus('ERROR');
+            });
+          return;
+        }
+
+        hasRemoteDocRef.current = true;
+
+        // Kendi bekleyen yazma işlemimiz ise yerel state'i ezme
+        if (snapshot.metadata.hasPendingWrites && isCloudHydratedRef.current) {
+          return;
+        }
+
+        const parsed = parseFirestoreWorkspaceDoc(snapshot.data(), todayStr);
+        if (parsed) {
+          suppressNextCloudWriteRef.current = true;
+          setTopics(parsed.topics);
+          setTriageLogs(parsed.triageLogs);
+          setDailyGoal(parsed.dailyGoal);
+          setMockExams(parsed.mockExams);
+          setSemanticErrors(parsed.semanticErrors);
+          setQuestionLogs(parsed.questionLogs);
+          if (parsed.topicTaxonomy.length > 0) {
+            setTopicTaxonomy(parsed.topicTaxonomy);
+          }
+          setAnkiSnapshot(parsed.ankiSnapshot);
+          setSystemParams(parsed.systemParams);
+          isCloudHydratedRef.current = true;
+          setCloudSyncStatus('SYNCED');
+          setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+        }
+      },
+      error => {
+        setCloudSyncStatus('ERROR');
+        try {
+          handleFirestoreError(error, OperationType.GET, docPath);
+        } catch {
+          // Hata loglandı
+        }
+      }
+    );
+
+    return () => unsubscribeSnapshot();
+  }, [isAuthReady, cloudUser, todayStr]);
+
+  // Yerel state değiştiğinde otomatik bulut senkronizasyonu (600ms debounce)
+  useEffect(() => {
+    if (!isAuthReady || !cloudUser || !isCloudHydratedRef.current) return;
+
+    if (suppressNextCloudWriteRef.current) {
+      suppressNextCloudWriteRef.current = false;
+      return;
+    }
+
+    setCloudSyncStatus('SYNCING');
+    const timer = setTimeout(() => {
+      saveCloudWorkspace(
+        cloudUser.uid,
+        {
+          studyDate: todayStr,
+          streakDays: 14,
+          topics,
+          triageLogs,
+          dailyGoal,
+          mockExams,
+          semanticErrors,
+          questionLogs,
+          topicTaxonomy,
+          ankiSnapshot,
+          systemParams
+        },
+        hasRemoteDocRef.current
+      )
+        .then(() => {
+          hasRemoteDocRef.current = true;
+          setCloudSyncStatus('SYNCED');
+          setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+        })
+        .catch(() => {
+          setCloudSyncStatus('ERROR');
+        });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [
+    isAuthReady,
+    cloudUser,
+    todayStr,
+    topics,
+    triageLogs,
+    dailyGoal,
+    mockExams,
+    semanticErrors,
+    questionLogs,
+    topicTaxonomy,
+    ankiSnapshot,
+    systemParams
+  ]);
+
+  const signInToCloud = useCallback(async () => {
+    setCloudSyncStatus('CONNECTING');
+    await signInWithGoogleCloud();
+  }, []);
+
+  const signOutOfCloud = useCallback(async () => {
+    await signOutFromCloud();
+    setCloudSyncStatus('OFFLINE');
+  }, []);
+
+  const forceCloudSync = useCallback(async () => {
+    if (!cloudUser) return;
+    setCloudSyncStatus('SYNCING');
+    await saveCloudWorkspace(
+      cloudUser.uid,
+      latestSnapshotRef.current,
+      hasRemoteDocRef.current
+    );
+    hasRemoteDocRef.current = true;
+    setCloudSyncStatus('SYNCED');
+    setLastCloudSyncedAt(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+  }, [cloudUser]);
 
   // Reactive Notifications
   const notifications = useMemo(() => {
@@ -1512,7 +1741,13 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toggleSound,
     exportDataJSON,
     importDataJSON,
-    resetToInitialData
+    resetToInitialData,
+    cloudUser,
+    cloudSyncStatus,
+    lastCloudSyncedAt,
+    signInToCloud,
+    signOutOfCloud,
+    forceCloudSync
   };
 
   return <DUSContext.Provider value={value}>{children}</DUSContext.Provider>;

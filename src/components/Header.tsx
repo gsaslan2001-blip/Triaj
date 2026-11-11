@@ -19,7 +19,10 @@ import {
   Cpu,
   TrendingUp,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  Cloud,
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 
 export type ActiveTab = 'planner' | 'subjects' | 'analytics' | 'report' | 'notifications';
@@ -49,9 +52,13 @@ export const Header: React.FC<HeaderProps> = ({
     importDataJSON,
     resetToInitialData,
     report,
-    requestBrowserNotificationPermission,
-    browserNotificationsEnabled,
-    systemParams
+    systemParams,
+    cloudUser,
+    cloudSyncStatus,
+    lastCloudSyncedAt,
+    signInToCloud,
+    signOutOfCloud,
+    forceCloudSync
   } = useDUS();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -203,8 +210,40 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </nav>
 
-          {/* Sağ: AI Koçu + Birleştirilmiş Sistem Araçları */}
+          {/* Sağ: Bulut Senkron + AI Koçu + Birleştirilmiş Sistem Araçları */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {cloudUser ? (
+              <button
+                type="button"
+                onClick={() => forceCloudSync()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-700/60 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                title={
+                  lastCloudSyncedAt
+                    ? `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Google Hesabı'}) · Son Eşitleme: ${lastCloudSyncedAt}`
+                    : `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Google Hesabı'})`
+                }
+              >
+                <Cloud
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    cloudSyncStatus === 'SYNCING' ? 'animate-pulse text-amber-400' : 'text-emerald-400'
+                  }`}
+                />
+                <span className="hidden sm:inline">
+                  {cloudSyncStatus === 'SYNCING' ? 'Eşitleniyor...' : 'Bulut Aktif'}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => signInToCloud()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                title="Cihazlar arası gerçek zamanlı bulut senkronizasyonu için Google ile bağlan"
+              >
+                <Cloud className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span className="hidden sm:inline">Bulut Bağla</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onOpenDeepSeek}
@@ -276,7 +315,58 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-xs text-slate-800">
+                  <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-xs text-slate-800">
+                    {cloudUser ? (
+                      <>
+                        <div className="px-4 py-2 border-b border-slate-100">
+                          <div className="font-semibold text-slate-900 truncate">
+                            {cloudUser.displayName || 'Google Bulut Hesabı'}
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {cloudUser.email}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            forceCloudSync();
+                            setMenuOpen(false);
+                          }}
+                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <RefreshCw className="w-4 h-4 text-emerald-600" />
+                          <span>Şimdi Bulutla Eşitle</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            signOutOfCloud();
+                            setMenuOpen(false);
+                          }}
+                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <LogOut className="w-4 h-4 text-slate-500" />
+                          <span>Bulut Oturumunu Kapat</span>
+                        </button>
+                        <div className="border-t border-slate-100 my-1" />
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            signInToCloud();
+                            setMenuOpen(false);
+                          }}
+                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-indigo-700 font-semibold hover:bg-indigo-50 transition-colors"
+                        >
+                          <Cloud className="w-4 h-4 text-indigo-600" />
+                          <span>Google ile Bulut Senkronu Aç</span>
+                        </button>
+                        <div className="border-t border-slate-100 my-1" />
+                      </>
+                    )}
+
                     <button
                       type="button"
                       onClick={handleExport}

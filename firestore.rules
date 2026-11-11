@@ -1,0 +1,115 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Pillar 2: Validation Blueprint for WorkspaceDocument
+    function isValidWorkspaceDocument(data, userId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'schemaVersion',
+          'studyDate',
+          'streakDays',
+          'stateMap',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'schemaVersion',
+          'studyDate',
+          'streakDays',
+          'stateMap',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.ownerId is string &&
+        data.ownerId.size() >= 1 &&
+        data.ownerId.size() <= 128 &&
+        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.ownerId == userId &&
+        data.schemaVersion is int &&
+        data.schemaVersion >= 1 &&
+        data.schemaVersion <= 100 &&
+        data.studyDate is string &&
+        data.studyDate.size() == 10 &&
+        data.studyDate.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.streakDays is int &&
+        data.streakDays >= 0 &&
+        data.streakDays <= 3650 &&
+        data.stateMap is map &&
+        data.stateMap.size() >= 1 &&
+        data.stateMap.size() <= 50 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspaceCreateTimestamp(data) {
+      return data.createdAt == request.time && data.updatedAt == request.time;
+    }
+
+    function isImmutableWorkspaceFieldsPreserved() {
+      return incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+    }
+
+    function isSyncWorkspaceStateAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'schemaVersion',
+        'studyDate',
+        'streakDays',
+        'stateMap',
+        'updatedAt'
+      ]);
+    }
+
+    // Single-user cloud workspace document (/workspaces/{userId})
+    match /workspaces/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidWorkspaceDocument(incoming(), userId) &&
+        isValidWorkspaceCreateTimestamp(incoming());
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidWorkspaceDocument(incoming(), userId) &&
+        isImmutableWorkspaceFieldsPreserved() &&
+        isSyncWorkspaceStateAction();
+      allow delete: if false;
+    }
+  }
+}

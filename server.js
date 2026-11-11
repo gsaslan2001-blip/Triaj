@@ -1,11 +1,49 @@
 // server.ts
 import "dotenv/config";
-import express from "express";
+import express2 from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 
-// src/utils/ticktick.ts
+// api/index.ts
+import "dotenv/config";
+import express from "express";
+var DEPLOY_DEEPSEEK_MODEL = "deepseek-ai/deepseek-v4.1-flash-1017";
+var DEPLOY_BASE_URL = "https://api-cdn.deploy.com/api/v1";
+var LOCKED_MAX_COMPLETION_TOKENS = 32768;
+var LOCKED_REASONING_EFFORT = "max";
+var LOCKED_IDEAL_TEMPERATURE = 0.2;
+var DEFAULT_DEEPSEEK_MASTER_PROMPT = `Sen "DUS 2027 Stratejik Y\xF6netim Sistemi"nin Ba\u015F Klinik Akademik Otoritesi ve Bili\u015Fsel Bellek M\xFChendisisin.
+Hitap etti\u011Fin kullan\u0131c\u0131: Dt. Furkan Kurt (\u0130stanbul \xDCniversitesi Di\u015F Hekimli\u011Fi Fak\xFCltesi Mezunu \u2014 Di\u015F Hekimi).
+B\xFCy\xFCk Hedef: 24 Ekim 2027 DUS \u2014 Ankara \xDCniversitesi A\u011F\u0131z, Di\u015F ve \xC7ene Cerrahisi (AD\xC7C), T\xFCrkiye TOP 10 Derecesi.
+Hedef Net Standard\u0131: Toplam 108.0 / 120.0 Net (Temel Bilimler: 36.0 / 40, Klinik Bilimler: 72.0 / 80, AD\xC7C Elit Baraj\u0131: 100.0+ Net).
+
+YANITLARINDA A\u015EA\u011EIDAK\u0130 6 DE\u011E\u0130\u015ET\u0130R\u0130LEMEZ B\u0130L\u0130\u015ESEL DOKTR\u0130N KURALINA KES\u0130NL\u0130KLE UYACAKSIN:
+
+1. SIFIR ANS\u0130KLOPED\u0130K DOLGU & %100 SINAV \u0130SABET\u0130 (80/20 PARETO):
+   - Giri\u015F/selamlama c\xFCmlesi veya kitabi \xF6zet yazma.
+   - Do\u011Frudan \xD6SYM DUS komisyonunun sordu\u011Fu/soraca\u011F\u0131 "Alt\u0131n Standart", "\u0130lk Tercih", "Kontrendikasyon", "Say\u0131sal E\u015Fik (mm, %, sn, derece, M/F oran\u0131)", "Spesifik Gen/Translokasyon (\xF6rn. PTCH1, CRTC1-MAML2, MYB-NFIB)" ve "En S\u0131k / En Nadir" ayr\u0131mlar\u0131n\u0131 keskin maddelerle ver.
+
+2. YAN YANA \xC7APRAZ KIYAS MATR\u0130S\u0130 (DISCRIMINATION LEARNING):
+   - Birbiriyle kar\u0131\u015Fan kavramlar\u0131 mutlaka Markdown Tablosu (| Kriter | Kavram A | Kavram B | \xD6SYM Tuza\u011F\u0131 |) halinde k\u0131yasla.
+
+3. EBBINGHAUS KOVA TR\u0130YAJI PROTOKOL\xDC:
+   - Ye\u015Fil Kova (T+3 40 soruda \u226534 Do\u011Fru, \u2265%85): \u015Eema neokortekste sa\u011Flamd\u0131r, taburcu edilir.
+   - Sar\u0131 Kova (T+3 40 soruda 28-33 Do\u011Fru, %70-%84): Sadece eriyen alt ba\u015Fl\u0131klara 15 dk nokta at\u0131\u015F\u0131 yama yap\u0131l\u0131r ve T+14 g\xFCn\xFCne 2. bankadan 20 soru do\u011Frulama atan\u0131r.
+   - K\u0131rm\u0131z\u0131 Kova (T+3 40 soruda \u226427 Do\u011Fru, <%70): Hafta i\xE7i ak\u0131\u015F\u0131 bozulmaz; Cumartesi Kova Onar\u0131m Blo\u011Funda 25 dk Bo\u015F Ka\u011F\u0131t (Blurting) + 30 soru ile \u015Fema s\u0131f\u0131rdan in\u015Fa edilir.
+
+4. SWSPS (SEMANTIC WEIGHTED SPACED PENALTY SCORE) HATA OTOPS\u0130S\u0130:
+   - Yanl\u0131\u015F yap\u0131lan sorularda bili\u015Fsel hata k\xF6k nedenini te\u015Fhis et:
+     * \xC7eldirici Tuza\u011F\u0131 (1.40x ceza)
+     * Muhakeme Hatas\u0131 (1.25x ceza)
+     * Bilgi Eksikli\u011Fi (1.00x ceza)
+     * Soru K\xF6k\xFC / Dikkat (0.80x ceza)
+
+5. ANK\u0130 FSRS & ATOM\u0130K CLOZE KART STANDARDI (01-KRITIK-OTOPSI-VE-TABLO):
+   - Maksimum 1-2 c\xFCmlelik, tek sat\u0131rda kopyalanmaya haz\u0131r {{c1::...}} ve {{c2::...}} Cloze format\u0131 kullan ve "Haf\u0131za \xC7ivisi (Mnemonic)" ekle.
+
+6. \xC7IKTI FORMATI:
+   - Ba\u015Fl\u0131klar\u0131 net, taranabilir, klinik ve y\xFCksek yo\u011Funluklu (high-density) tut.`;
 var TR_DAYS = [
   "Pazar",
   "Pazartesi",
@@ -154,45 +192,6 @@ function buildTickTickFocusSummary(records, todayDateStr, requestedDateStr) {
     dailyLogs
   };
 }
-
-// src/utils/deepseek.ts
-var DEPLOY_DEEPSEEK_MODEL = "deepseek-ai/deepseek-v4.1-flash-1017";
-var DEPLOY_BASE_URL = "https://api-cdn.deploy.com/api/v1";
-var DEFAULT_DEEPSEEK_MASTER_PROMPT = `Sen "DUS 2027 Stratejik Y\xF6netim Sistemi"nin Ba\u015F Klinik Akademik Otoritesi ve Bili\u015Fsel Bellek M\xFChendisisin.
-Hitap etti\u011Fin kullan\u0131c\u0131: Dt. Furkan Kurt (\u0130stanbul \xDCniversitesi Di\u015F Hekimli\u011Fi Fak\xFCltesi Mezunu \u2014 Di\u015F Hekimi).
-B\xFCy\xFCk Hedef: 24 Ekim 2027 DUS \u2014 Ankara \xDCniversitesi A\u011F\u0131z, Di\u015F ve \xC7ene Cerrahisi (AD\xC7C), T\xFCrkiye TOP 10 Derecesi.
-Hedef Net Standard\u0131: Toplam 108.0 / 120.0 Net (Temel Bilimler: 36.0 / 40, Klinik Bilimler: 72.0 / 80, AD\xC7C Elit Baraj\u0131: 100.0+ Net).
-
-YANITLARINDA A\u015EA\u011EIDAK\u0130 6 DE\u011E\u0130\u015ET\u0130R\u0130LEMEZ B\u0130L\u0130\u015ESEL DOKTR\u0130N KURALINA KES\u0130NL\u0130KLE UYACAKSIN:
-
-1. SIFIR ANS\u0130KLOPED\u0130K DOLGU & %100 SINAV \u0130SABET\u0130 (80/20 PARETO):
-   - Giri\u015F/selamlama c\xFCmlesi veya kitabi \xF6zet yazma.
-   - Do\u011Frudan \xD6SYM DUS komisyonunun sordu\u011Fu/soraca\u011F\u0131 "Alt\u0131n Standart", "\u0130lk Tercih", "Kontrendikasyon", "Say\u0131sal E\u015Fik (mm, %, sn, derece, M/F oran\u0131)", "Spesifik Gen/Translokasyon (\xF6rn. PTCH1, CRTC1-MAML2, MYB-NFIB)" ve "En S\u0131k / En Nadir" ayr\u0131mlar\u0131n\u0131 keskin maddelerle ver.
-
-2. YAN YANA \xC7APRAZ KIYAS MATR\u0130S\u0130 (DISCRIMINATION LEARNING):
-   - Birbiriyle kar\u0131\u015Fan kavramlar\u0131 (\xF6rn. Evre III vs Evre IV Periodontitis, Gama-1 vs Gama-2 faz\u0131, Foramen ovale vs spinosum, Kontroll\xFC vs Kontrols\xFCz devrilme, Ameloblastoma vs OKK) mutlaka Markdown Tablosu (| Kriter | Kavram A | Kavram B | \xD6SYM Tuza\u011F\u0131 |) halinde k\u0131yasla.
-
-3. EBBINGHAUS KOVA TR\u0130YAJI PROTOKOL\xDC:
-   - Ye\u015Fil Kova (T+3 40 soruda \u226534 Do\u011Fru, \u2265%85): \u015Eema neokortekste sa\u011Flamd\u0131r, taburcu edilir (2. soru bankas\u0131 \xE7\xF6z\xFClmez).
-   - Sar\u0131 Kova (T+3 40 soruda 28-33 Do\u011Fru, %70-%84): Sadece eriyen alt ba\u015Fl\u0131klara 15 dk nokta at\u0131\u015F\u0131 yama yap\u0131l\u0131r ve T+14 g\xFCn\xFCne 2. bankadan 20 soru do\u011Frulama atan\u0131r.
-   - K\u0131rm\u0131z\u0131 Kova (T+3 40 soruda \u226427 Do\u011Fru, <%70): Hafta i\xE7i ak\u0131\u015F\u0131 bozulmaz; Cumartesi Kova Onar\u0131m Blo\u011Funda 25 dk Bo\u015F Ka\u011F\u0131t (Blurting) + 30 soru ile \u015Fema s\u0131f\u0131rdan in\u015Fa edilir.
-
-4. SWSPS (SEMANTIC WEIGHTED SPACED PENALTY SCORE) HATA OTOPS\u0130S\u0130:
-   - Yanl\u0131\u015F yap\u0131lan sorularda bili\u015Fsel hata k\xF6k nedenini te\u015Fhis et:
-     * \xC7eldirici Tuza\u011F\u0131 (1.40x ceza): Hangi kelime/istisna tuza\u011Fa d\xFC\u015F\xFCrd\xFC?
-     * Muhakeme Hatas\u0131 (1.25x ceza): Klinik karar algoritmas\u0131nda hangi basamak atland\u0131?
-     * Bilgi Eksikli\u011Fi (1.00x ceza): Hangi spot e\u015Fik unutuldu?
-     * Soru K\xF6k\xFC / Dikkat (0.80x ceza): "De\u011Fildir / En az / \u0130lk" vurgusu nas\u0131l ka\xE7\u0131r\u0131ld\u0131?
-
-5. ANK\u0130 FSRS & ATOM\u0130K CLOZE KART STANDARDI (01-KRITIK-OTOPSI-VE-TABLO):
-   - Anki kart\u0131 \xFCretirken asla uzun paragraf yazma; maksimum 1-2 c\xFCmlelik, tek sat\u0131rda kopyalanmaya haz\u0131r {{c1::...}} ve {{c2::...}} Cloze format\u0131 kullan.
-   - Nank\xF6r ezberler (Grup A dersleri: Anatomi, Mikrobiyoloji, Farmakoloji, Biyokimya) i\xE7in mutlaka fonolojik, mekansal veya abs\xFCrt bir "Haf\u0131za \xC7ivisi (Mnemonic)" ekle.
-
-6. \xC7IKTI FORMATI:
-   - Ba\u015Fl\u0131klar\u0131 net, taranabilir, klinik ve y\xFCksek yo\u011Funluklu (high-density) tut. Gereksiz hi\xE7bir kelime kullanma.`;
-var LOCKED_MAX_COMPLETION_TOKENS = 32768;
-var LOCKED_REASONING_EFFORT = "max";
-var LOCKED_IDEAL_TEMPERATURE = 0.2;
 function buildDeepSeekPayload(input) {
   const subjectLabel = input.subjectCode ? `[${input.subjectCode}] ${input.subjectName || "DUS Dersi"}` : input.subjectName || "DUS Dersi";
   const unitLabel = input.topicCode ? `${input.topicCode} \u2014 ${input.unitTitle || "Genel Konu"}` : input.unitTitle || "Genel Konu";
@@ -261,7 +260,7 @@ ${input.swspsContext}` : "",
 ${input.swspsContext}` : "",
         input.userNotes ? `- \xD6\u011Frencinin Stratejik Notu / Hedefi: ${input.userNotes}` : "",
         "",
-        `### \u0130STENEN \xC7IKTI (TAKTiKSEL DENEME KO\xC7LU\u011EU):`,
+        `### \u0130STENEN \xC7IKTI (TAKT\u0130KSEL DENEME KO\xC7LU\u011EU):`,
         `1. **Net A\xE7\u0131\u011F\u0131 Te\u015Fhisi (108.0 Hedefine Kalan Fark Analizi)**: En h\u0131zl\u0131 net art\u0131\u015F\u0131 sa\u011Flayacak 3 kald\u0131ra\xE7 bran\u015F ve \xFCnite.`,
         `2. **SWSPS Ceza Puan\u0131 Y\xFCksek Konular \u0130\xE7in 7 G\xFCnl\xFCk Mikro-M\xFCdahale Plan\u0131**: Hangi g\xFCn hangi kova/hataya nas\u0131l m\xFCdahale edilmeli?`,
         `3. **Soru \xC7\xF6z\xFCm H\u0131z\u0131 (50-60 sn/soru) ve Turlama Tekni\u011Fi Kalibrasyonu**.`
@@ -277,9 +276,6 @@ ${input.examContext}` : "",
       ].filter(Boolean).join("\n\n");
       break;
   }
-  const reasoningEffort = LOCKED_REASONING_EFFORT;
-  const clampedMaxTokens = LOCKED_MAX_COMPLETION_TOKENS;
-  const temperature = LOCKED_IDEAL_TEMPERATURE;
   const topP = typeof input.topP === "number" ? Math.max(0.1, Math.min(1, Number(input.topP.toFixed(2)))) : 0.95;
   const presencePenalty = typeof input.presencePenalty === "number" ? Math.max(-2, Math.min(2, Number(input.presencePenalty.toFixed(2)))) : 0;
   const frequencyPenalty = typeof input.frequencyPenalty === "number" ? Math.max(-2, Math.min(2, Number(input.frequencyPenalty.toFixed(2)))) : 0.1;
@@ -291,9 +287,9 @@ ${input.examContext}` : "",
       { role: "system", content: systemPrompt },
       { role: "user", content: userContent }
     ],
-    reasoning_effort: reasoningEffort,
-    max_completion_tokens: clampedMaxTokens,
-    temperature,
+    reasoning_effort: LOCKED_REASONING_EFFORT,
+    max_completion_tokens: LOCKED_MAX_COMPLETION_TOKENS,
+    temperature: LOCKED_IDEAL_TEMPERATURE,
     top_p: topP,
     presence_penalty: presencePenalty,
     frequency_penalty: frequencyPenalty,
@@ -327,11 +323,6 @@ ${rawReasoning}` : ""),
     }
   };
 }
-
-// server.ts
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
-var PORT = 3e3;
 var activeAccessToken = process.env.TICKTICK_ACCESS_TOKEN || "f91fae7a-ee3d-4452-bbd7-42a1c1cea335";
 var activeRefreshToken = process.env.TICKTICK_REFRESH_TOKEN || "";
 var clientId = process.env.TICKTICK_CLIENT_ID || "uA1j1GZtLknH5I89cI";
@@ -345,7 +336,9 @@ function getRedirectUri(req) {
   if (typeof req.query.redirectUri === "string" && req.query.redirectUri.startsWith("http")) {
     return req.query.redirectUri;
   }
-  const appUrl = process.env.APP_URL && process.env.APP_URL !== "MY_APP_URL" ? process.env.APP_URL.replace(/\/$/, "") : `${req.protocol}://${req.get("host")}`;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = typeof forwardedProto === "string" ? forwardedProto.split(",")[0].trim() : req.protocol;
+  const appUrl = process.env.APP_URL && process.env.APP_URL !== "MY_APP_URL" ? process.env.APP_URL.replace(/\/$/, "") : `${protocol}://${req.get("host")}`;
   return `${appUrl}/auth/callback`;
 }
 function formatTickTickDateParam(date, isEndOfDay) {
@@ -396,10 +389,10 @@ async function fetchAllTickTickFocusRecords(forceRefresh = false) {
   lastCacheTimestamp = Date.now();
   return combined;
 }
-async function startServer() {
-  const app = express();
-  app.use(express.json());
-  app.get("/api/auth/ticktick/url", (req, res) => {
+function createApiApp() {
+  const app2 = express();
+  app2.use(express.json());
+  app2.get("/api/auth/ticktick/url", (req, res) => {
     const redirectUri = getRedirectUri(req);
     const params = new URLSearchParams({
       client_id: clientId,
@@ -466,8 +459,8 @@ async function startServer() {
       </html>
     `);
   };
-  app.get(["/auth/callback", "/auth/callback/"], oauthCallbackHandler);
-  app.get("/api/ticktick/focus", async (req, res) => {
+  app2.get(["/auth/callback", "/auth/callback/"], oauthCallbackHandler);
+  app2.get("/api/ticktick/focus", async (req, res) => {
     try {
       const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
       const requestedDate = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : void 0;
@@ -486,7 +479,7 @@ async function startServer() {
       });
     }
   });
-  app.get("/api/ai/status", (_req, res) => {
+  app2.get("/api/ai/status", (_req, res) => {
     res.json({
       configured: Boolean(deployApiKey),
       provider: "deploy.com",
@@ -494,7 +487,7 @@ async function startServer() {
       model: deployModel
     });
   });
-  app.post("/api/ai/deepseek", async (req, res) => {
+  app2.post("/api/ai/deepseek", async (req, res) => {
     try {
       const input = req.body || {};
       const payload = buildDeepSeekPayload(input);
@@ -522,6 +515,16 @@ async function startServer() {
       });
     }
   });
+  return app2;
+}
+var app = createApiApp();
+
+// server.ts
+var __filename = fileURLToPath(import.meta.url);
+var __dirname = path.dirname(__filename);
+var PORT = 3e3;
+async function startServer() {
+  const app2 = createApiApp();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: {
@@ -531,15 +534,15 @@ async function startServer() {
       },
       appType: "spa"
     });
-    app.use(vite.middlewares);
+    app2.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, "dist");
-    app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
+    app2.use(express2.static(distPath));
+    app2.get("*", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-  app.listen(PORT, "0.0.0.0", () => {
+  app2.listen(PORT, "0.0.0.0", () => {
     console.log(`DUS 2027, TickTick & DeepSeek v4.1 Server running on http://localhost:${PORT}`);
   });
 }
