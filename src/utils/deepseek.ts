@@ -352,17 +352,33 @@ export async function requestDeepSeekCompletion(
   const response = await fetch('/api/ai/deepseek', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
     },
     body: JSON.stringify(input)
   });
 
+  const rawText = await response.text();
+  const trimmed = rawText.trim();
+  if (!trimmed || trimmed.startsWith('<') || /^<!doctype/i.test(trimmed)) {
+    throw new Error('DeepSeek API sunucusuna şu an ulaşılamıyor.');
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    throw new Error('DeepSeek API yanıtı ayrıştırılamadı.');
+  }
+
   if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
     throw new Error(
-      errBody.error || `DeepSeek API hatası (HTTP ${response.status})`
+      typeof parsed.error === 'string'
+        ? parsed.error
+        : `DeepSeek API hatası (HTTP ${response.status})`
     );
   }
 
-  return response.json();
+  return parsed as unknown as DeepSeekResult;
 }
+

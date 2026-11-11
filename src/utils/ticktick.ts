@@ -259,3 +259,50 @@ export function buildTickTickFocusSummary(
     dailyLogs
   };
 }
+
+/**
+ * Ortam değişkenlerindeki YOUR_* veya MY_* gibi yer tutucu (placeholder) değerleri filtreler
+ */
+export function resolveEnvValue(rawVal: string | undefined, fallback: string): string {
+  if (!rawVal) return fallback;
+  const trimmed = rawVal.trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith('YOUR_') ||
+    trimmed.startsWith('MY_') ||
+    trimmed.startsWith('<') ||
+    trimmed === 'undefined' ||
+    trimmed === 'null'
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+/**
+ * API yanıt metnini güvenli biçimde ayrıştırır; HTML (<!doctype ...) döndüğünde SyntaxError fırlatmaz
+ */
+export function safeParseJsonResponse<T>(rawText: string): { ok: true; data: T } | { ok: false; isHtml: boolean; error: string } {
+  const trimmed = (rawText || '').trim();
+  if (!trimmed) {
+    return { ok: false, isHtml: false, error: 'Boş sunucu yanıtı alındı.' };
+  }
+  if (trimmed.startsWith('<') || /^<!doctype/i.test(trimmed)) {
+    return {
+      ok: false,
+      isHtml: true,
+      error: 'API rotası yerine HTML yanıtı döndü.'
+    };
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as T;
+    return { ok: true, data: parsed };
+  } catch {
+    return {
+      ok: false,
+      isHtml: false,
+      error: 'Geçersiz JSON yanıtı alındı.'
+    };
+  }
+}
+

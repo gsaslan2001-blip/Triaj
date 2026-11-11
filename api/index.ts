@@ -1,5 +1,7 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
+
+dotenv.config({ override: true });
 
 /**
  * Vercel Serverless Function & Express API Sunucusu (Tekil Kaynak — Self-Contained ESM)
@@ -477,16 +479,42 @@ function parseDeepSeekResponse(raw: Record<string, unknown>) {
   };
 }
 
-let activeAccessToken =
-  process.env.TICKTICK_ACCESS_TOKEN || 'f91fae7a-ee3d-4452-bbd7-42a1c1cea335';
-let activeRefreshToken = process.env.TICKTICK_REFRESH_TOKEN || '';
-const clientId = process.env.TICKTICK_CLIENT_ID || 'uA1j1GZtLknH5I89cI';
-const clientSecret =
-  process.env.TICKTICK_CLIENT_SECRET || 'gfZY577hM8TF2m6u72sKlITUaiKIBbdh';
+function resolveEnvValue(rawVal: string | undefined, fallback: string): string {
+  if (!rawVal) return fallback;
+  const trimmed = rawVal.trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith('YOUR_') ||
+    trimmed.startsWith('MY_') ||
+    trimmed.startsWith('<') ||
+    trimmed === 'undefined' ||
+    trimmed === 'null'
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
 
-const deployApiKey = process.env.DEPLOY_API_KEY || '8p68e3DgJyuHUdhKnrfrAg==';
-const deployBaseUrl = (process.env.DEPLOY_BASE_URL || DEPLOY_BASE_URL).replace(/\/$/, '');
-const deployModel = process.env.DEPLOY_MODEL || DEPLOY_DEEPSEEK_MODEL;
+let activeAccessToken = resolveEnvValue(
+  process.env.TICKTICK_ACCESS_TOKEN,
+  'f91fae7a-ee3d-4452-bbd7-42a1c1cea335'
+);
+let activeRefreshToken = resolveEnvValue(process.env.TICKTICK_REFRESH_TOKEN, '');
+const clientId = resolveEnvValue(process.env.TICKTICK_CLIENT_ID, 'uA1j1GZtLknH5I89cI');
+const clientSecret = resolveEnvValue(
+  process.env.TICKTICK_CLIENT_SECRET,
+  'gfZY577hM8TF2m6u72sKlITUaiKIBbdh'
+);
+
+const deployApiKey = resolveEnvValue(
+  process.env.DEPLOY_API_KEY,
+  '8p68e3DgJyuHUdhKnrfrAg=='
+);
+const deployBaseUrl = resolveEnvValue(
+  process.env.DEPLOY_BASE_URL,
+  DEPLOY_BASE_URL
+).replace(/\/$/, '');
+const deployModel = resolveEnvValue(process.env.DEPLOY_MODEL, DEPLOY_DEEPSEEK_MODEL);
 
 let cachedRawRecords: RawTickTickFocusRecord[] | null = null;
 let lastCacheTimestamp = 0;
@@ -499,7 +527,7 @@ function getRedirectUri(req: express.Request): string {
   const protocol =
     typeof forwardedProto === 'string' ? forwardedProto.split(',')[0].trim() : req.protocol;
   const appUrl =
-    process.env.APP_URL && process.env.APP_URL !== 'MY_APP_URL'
+    process.env.APP_URL && !process.env.APP_URL.startsWith('MY_') && !process.env.APP_URL.startsWith('YOUR_')
       ? process.env.APP_URL.replace(/\/$/, '')
       : `${protocol}://${req.get('host')}`;
   return `${appUrl}/auth/callback`;
@@ -628,7 +656,7 @@ export function createApiApp(): express.Express {
           }
         }
       } catch (err) {
-        console.error('TickTick OAuth token exchange error:', err);
+        console.warn('TickTick OAuth token exchange warning:', err);
       }
     }
 
@@ -658,14 +686,14 @@ export function createApiApp(): express.Express {
 
   // 3. TickTick Focus & Pomodoro API Endpoint
   app.get('/api/ticktick/focus', async (req, res) => {
+    const requestedDate =
+      typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+        ? req.query.date
+        : undefined;
+    const todayStr = toTurkeyDateString(new Date().toISOString());
+
     try {
       const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
-      const requestedDate =
-        typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
-          ? req.query.date
-          : undefined;
-
-      const todayStr = toTurkeyDateString(new Date().toISOString());
       const records = await fetchAllTickTickFocusRecords(forceRefresh);
       const summary = buildTickTickFocusSummary(records, todayStr, requestedDate);
 
@@ -674,10 +702,16 @@ export function createApiApp(): express.Express {
         hasRefreshToken: Boolean(activeRefreshToken)
       });
     } catch (error) {
-      console.error('TickTick Focus API Error:', error);
-      res.status(502).json({
-        connected: false,
-        error: error instanceof Error ? error.message : 'TickTick verisi çekilemedi.'
+      const fallbackSummary = buildTickTickFocusSummary(
+        cachedRawRecords || [],
+        todayStr,
+        requestedDate
+      );
+      res.status(200).json({
+        ...fallbackSummary,
+        connected: Boolean(cachedRawRecords && cachedRawRecords.length > 0),
+        hasRefreshToken: Boolean(activeRefreshToken),
+        warning: error instanceof Error ? error.message : 'TickTick verisi çekilemedi.'
       });
     }
   });

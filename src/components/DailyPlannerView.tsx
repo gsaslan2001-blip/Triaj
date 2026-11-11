@@ -6,7 +6,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDUS } from '../context/DUSContext';
 import { TopicUnit } from '../types/dus';
-import { TickTickFocusSummary, FocusSegment, ConsolidatedFocusDay } from '../utils/ticktick';
+import {
+  TickTickFocusSummary,
+  FocusSegment,
+  ConsolidatedFocusDay,
+  buildTickTickFocusSummary,
+  safeParseJsonResponse
+} from '../utils/ticktick';
 import { TriageModal } from './TriageModal';
 import {
   CheckCircle2,
@@ -69,7 +75,20 @@ export const DailyPlannerView: React.FC = () => {
   const [showSwspsTooltip, setShowSwspsTooltip] = useState<boolean>(false);
 
   // TickTick Focus & Pomodoro State
-  const [ticktickSummary, setTicktickSummary] = useState<TickTickFocusSummary | null>(null);
+  const [ticktickSummary, setTicktickSummary] = useState<TickTickFocusSummary | null>(() => {
+    try {
+      const cached = localStorage.getItem('dus_ticktick_focus_cache_v1');
+      if (cached) {
+        const parsed = safeParseJsonResponse<TickTickFocusSummary>(cached);
+        if (parsed.ok && parsed.data && Array.isArray(parsed.data.dailyLogs)) {
+          return parsed.data;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
   const [selectedTickTickDate, setSelectedTickTickDate] = useState<string>('');
   const [isSyncingTickTick, setIsSyncingTickTick] = useState<boolean>(false);
   const [ticktickError, setTicktickError] = useState<string | null>(null);
@@ -84,23 +103,40 @@ export const DailyPlannerView: React.FC = () => {
         if (dateParam) params.set('date', dateParam);
         if (forceRefresh) params.set('refresh', '1');
 
-        const res = await fetch(`/api/ticktick/focus?${params.toString()}`);
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `TickTick bağlantı hatası (${res.status})`);
+        const res = await fetch(`/api/ticktick/focus?${params.toString()}`, {
+          headers: { Accept: 'application/json' }
+        });
+        const rawText = await res.text();
+        const parsed = safeParseJsonResponse<TickTickFocusSummary & { error?: string; warning?: string }>(rawText);
+
+        if (!parsed.ok) {
+          // Eğer statik önbellek veya HTML fallback döndüyse yerel önbellek/varsayılan özeti kullan
+          setTicktickSummary(prev => prev ?? buildTickTickFocusSummary([], todayStr, dateParam));
+          return;
         }
 
-        const data: TickTickFocusSummary = await res.json();
+        if (!res.ok || parsed.data.error) {
+          throw new Error(parsed.data.error || `TickTick bağlantı hatası (${res.status})`);
+        }
+
+        const data: TickTickFocusSummary = parsed.data;
         setTicktickSummary(data);
         setSelectedTickTickDate(data.activeDate);
 
-        if (data.activeDayStats) {
+        if (data.connected && data.dailyLogs.length > 0) {
+          try {
+            localStorage.setItem('dus_ticktick_focus_cache_v1', JSON.stringify(data));
+          } catch {
+            // ignore
+          }
+        }
+
+        if (data.activeDayStats && data.connected) {
           updateDailyGoal({
             completedStudyMinutes: data.activeDayStats.totalMinutes
           });
         }
       } catch (err) {
-        console.error('TickTick sync error:', err);
         setTicktickError(
           err instanceof Error ? err.message : 'TickTick odak verileri çekilemedi.'
         );
@@ -108,7 +144,7 @@ export const DailyPlannerView: React.FC = () => {
         setIsSyncingTickTick(false);
       }
     },
-    [updateDailyGoal]
+    [todayStr, updateDailyGoal]
   );
 
   useEffect(() => {
@@ -133,11 +169,15 @@ export const DailyPlannerView: React.FC = () => {
     try {
       const redirectUri = `${window.location.origin}/auth/callback`;
       const res = await fetch(
-        `/api/auth/ticktick/url?redirectUri=${encodeURIComponent(redirectUri)}`
+        `/api/auth/ticktick/url?redirectUri=${encodeURIComponent(redirectUri)}`,
+        { headers: { Accept: 'application/json' } }
       );
-      if (!res.ok) throw new Error('OAuth URL alınamadı');
-      const { url } = await res.json();
-      window.open(url, 'ticktick_oauth_popup', 'width=600,height=720');
+      const rawText = await res.text();
+      const parsed = safeParseJsonResponse<{ url?: string }>(rawText);
+      if (!res.ok || !parsed.ok || !parsed.data.url) {
+        throw new Error('OAuth URL alınamadı');
+      }
+      window.open(parsed.data.url, 'ticktick_oauth_popup', 'width=600,height=720');
     } catch (err) {
       setTicktickError(
         err instanceof Error ? err.message : 'TickTick OAuth penceresi açılamadı.'

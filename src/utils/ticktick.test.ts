@@ -5,6 +5,8 @@ import {
   toTurkeyDateString,
   consolidateTickTickRecords,
   buildTickTickFocusSummary,
+  resolveEnvValue,
+  safeParseJsonResponse,
   RawTickTickFocusRecord
 } from './ticktick';
 
@@ -90,3 +92,37 @@ test('buildTickTickFocusSummary computes 7-day average and segment distribution'
   assert.equal(summary.segmentDistribution['10+ Saat'], 1);
   assert.equal(summary.segmentDistribution['3-7 Saat'], 1);
 });
+
+test('resolveEnvValue filters out YOUR_* and MY_* placeholder values and returns fallback', () => {
+  assert.equal(
+    resolveEnvValue('YOUR_TICKTICK_ACCESS_TOKEN', 'f91fae7a-ee3d-4452-bbd7-42a1c1cea335'),
+    'f91fae7a-ee3d-4452-bbd7-42a1c1cea335'
+  );
+  assert.equal(
+    resolveEnvValue('MY_APP_URL', 'http://localhost:3000'),
+    'http://localhost:3000'
+  );
+  assert.equal(
+    resolveEnvValue('', 'fallback-val'),
+    'fallback-val'
+  );
+  assert.equal(
+    resolveEnvValue('real-token-123', 'fallback-val'),
+    'real-token-123'
+  );
+});
+
+test('safeParseJsonResponse safely handles HTML <!doctype> and valid JSON without throwing SyntaxError', () => {
+  const htmlRes = safeParseJsonResponse('<!doctype html><html><body>SPA</body></html>');
+  assert.equal(htmlRes.ok, false);
+  if (!htmlRes.ok) {
+    assert.equal(htmlRes.isHtml, true);
+  }
+
+  const jsonRes = safeParseJsonResponse<{ connected: boolean }>('{"connected":true}');
+  assert.equal(jsonRes.ok, true);
+  if (jsonRes.ok) {
+    assert.equal(jsonRes.data.connected, true);
+  }
+});
+
