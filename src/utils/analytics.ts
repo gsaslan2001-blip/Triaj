@@ -61,10 +61,30 @@ export interface SWSPSInput {
   // SWSPS v2.0 Dinamik Çarpan Parametreleri (Opsiyonel — Verildiğinde Kova, Branş ve Anki sönümlemesini uygular)
   bucket?: BucketType;
   branchCode?: CanonicalBranchCode;
+  unitWeight?: number | null;
   ankiClozeStatus?: 'Eklendi' | 'Bekliyor';
   isTopicDischarged?: boolean;
   matchedTopicId?: string;
   matchedTopicTitle?: string;
+}
+
+/**
+ * Kanonik DUS Kategori Ağırlığı:
+ * - Temel Bilimler (B01..B08): 0.4
+ * - Klinik Bilimler (B09..B16): 0.6
+ */
+export function getCanonicalDusCategoryWeight(branchCode?: CanonicalBranchCode): {
+  category: 'TEMEL_BILIMLER' | 'KLINIK_BILIMLER';
+  dusWeight: number;
+} {
+  if (!branchCode) {
+    return { category: 'TEMEL_BILIMLER', dusWeight: 0.4 };
+  }
+  const spec = CANONICAL_16_BRANCHES.find(b => b.code === branchCode);
+  if (spec?.category === 'KLINIK_BILIMLER') {
+    return { category: 'KLINIK_BILIMLER', dusWeight: 0.6 };
+  }
+  return { category: 'TEMEL_BILIMLER', dusWeight: 0.4 };
 }
 
 export function getBucketSwspsMultiplier(bucket?: BucketType): number {
@@ -84,13 +104,15 @@ export function getBucketSwspsMultiplier(bucket?: BucketType): number {
 export function getBranchSwspsMultiplier(branchCode?: CanonicalBranchCode): {
   multiplier: number;
   questionCount: number;
+  dusCategoryWeight: number;
 } {
-  if (!branchCode) return { multiplier: 1.0, questionCount: 6 };
+  if (!branchCode) return { multiplier: 1.0, questionCount: 6, dusCategoryWeight: 0.4 };
   const spec = CANONICAL_16_BRANCHES.find(b => b.code === branchCode);
   const qCount = spec?.questionCount ?? 6;
-  if (qCount >= 10) return { multiplier: 1.15, questionCount: qCount };
-  if (qCount <= 4) return { multiplier: 0.9, questionCount: qCount };
-  return { multiplier: 1.0, questionCount: qCount };
+  const { dusWeight } = getCanonicalDusCategoryWeight(branchCode);
+  if (qCount >= 10) return { multiplier: 1.15, questionCount: qCount, dusCategoryWeight: dusWeight };
+  if (qCount <= 4) return { multiplier: 0.9, questionCount: qCount, dusCategoryWeight: dusWeight };
+  return { multiplier: 1.0, questionCount: qCount, dusCategoryWeight: dusWeight };
 }
 
 export function getMitigationSwspsMultiplier(
@@ -167,15 +189,27 @@ export function calculateSWSPSBreakdown(input: SWSPSInput): SWSPSBreakdown {
 
   const matchedBucket: BucketType = input.bucket || 'NONE';
   const bucketMultiplier = getBucketSwspsMultiplier(matchedBucket);
-  const { multiplier: branchMultiplier, questionCount: branchQuestionCount } =
-    getBranchSwspsMultiplier(input.branchCode);
+  const {
+    multiplier: branchMultiplier,
+    questionCount: branchQuestionCount,
+    dusCategoryWeight
+  } = getBranchSwspsMultiplier(input.branchCode);
   const mitigationMultiplier = getMitigationSwspsMultiplier(
     input.ankiClozeStatus,
     input.isTopicDischarged
   );
 
+  const unitWeightFactor =
+    typeof input.unitWeight === 'number' && input.unitWeight > 0 ? input.unitWeight : 1.0;
+
   const finalScore = Number(
-    (rawBaseScore * bucketMultiplier * branchMultiplier * mitigationMultiplier).toFixed(2)
+    (
+      rawBaseScore *
+      bucketMultiplier *
+      branchMultiplier *
+      unitWeightFactor *
+      mitigationMultiplier
+    ).toFixed(2)
   );
 
   const { tier, tierLabel, recommendedAction } = classifySwspsTier(finalScore);
@@ -198,7 +232,10 @@ export function calculateSWSPSBreakdown(input: SWSPSInput): SWSPSBreakdown {
       ? 'Taburcu (0.75x)'
       : 'Anki Bekliyor (1.00x)';
 
-  const formulaSummary = `${input.errorType} (${wError.toFixed(2)}x) × ${nRepeat}. Tekrar × Zorluk (${difficultyFactor.toFixed(2)}x) × Unutma (${forgettingRisk.toFixed(2)}) × ${bucketText} × ${branchQuestionCount}S Branş (${branchMultiplier.toFixed(2)}x) × ${ankiText}`;
+  const dusWeightLabel =
+    dusCategoryWeight === 0.6 ? 'Klinik DUS (0.6)' : 'Temel DUS (0.4)';
+
+  const formulaSummary = `${input.errorType} (${wError.toFixed(2)}x) × ${nRepeat}. Tekrar × Zorluk (${difficultyFactor.toFixed(2)}x) × Unutma (${forgettingRisk.toFixed(2)}) × ${bucketText} × ${dusWeightLabel} · ${branchQuestionCount}S (${branchMultiplier.toFixed(2)}x) × ${ankiText}`;
 
   return {
     rawBaseScore,
@@ -210,6 +247,8 @@ export function calculateSWSPSBreakdown(input: SWSPSInput): SWSPSBreakdown {
     recencyBoost,
     bucketMultiplier,
     branchMultiplier,
+    dusCategoryWeight,
+    unitWeight: input.unitWeight ?? null,
     mitigationMultiplier,
     matchedBucket,
     matchedTopicId: input.matchedTopicId,

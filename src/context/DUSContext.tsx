@@ -349,11 +349,38 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_MOCK_EXAMS;
   });
 
-  // Topic Taxonomy (Konu_Matrisi)
+  // Topic Taxonomy (Konu_Matrisi — Temel Bilimler: 0.4, Klinik Bilimler: 0.6, Ünite Ağırlığı: Daha Sonra Eklenecek)
   const [topicTaxonomy, setTopicTaxonomy] = useState<TopicTaxonomyItem[]>(() => {
     try {
       const saved = localStorage.getItem(EXTENDED_STORAGE_KEYS.TOPIC_TAXONOMY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as TopicTaxonomyItem[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const normalized: TopicTaxonomyItem[] = parsed.map(item => {
+            const isClinical = ['B09', 'B10', 'B11', 'B12', 'B13', 'B14', 'B15', 'B16'].includes(
+              item.branchCode
+            );
+            return {
+              ...item,
+              category: isClinical ? 'KLINIK_BILIMLER' : 'TEMEL_BILIMLER',
+              dusWeight: isClinical ? 0.6 : 0.4,
+              unitWeight: typeof item.unitWeight === 'number' ? item.unitWeight : null
+            };
+          });
+          // Eksik B08 (Tıbbi Biyoloji ve Genetik) varsa ekle ve B01..B16 sırasına göre diz
+          for (const seedItem of INITIAL_TOPIC_TAXONOMY) {
+            if (!normalized.some(n => n.semanticCode === seedItem.semanticCode)) {
+              normalized.push(seedItem);
+            }
+          }
+          return normalized
+            .sort((a, b) => a.branchCode.localeCompare(b.branchCode))
+            .map((item, idx) => ({
+              ...item,
+              id: `KM-${String(idx + 1).padStart(2, '0')}`
+            }));
+        }
+      }
     } catch {
       // ignore
     }

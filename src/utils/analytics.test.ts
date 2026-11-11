@@ -10,11 +10,29 @@ import {
   getDelayHeatmapStyle,
   getTopicNextTargetDate,
   checkDuplicateAuditLog,
+  getCanonicalDusCategoryWeight,
   CANONICAL_16_BRANCHES
 } from './analytics';
+import { INITIAL_TOPIC_TAXONOMY } from '../data/excelMasterSeed';
 import { CanonicalBranchCode, TopicUnit, TriageRecord } from '../types/dus';
 
 describe('Excel-to-App Mimari Kılavuzu Hesaplama Motoru Testleri', () => {
+  it('Konu_Matrisi Kanonik DUS Ağırlıkları: Temel Bilimler (B01-B08) 0.4, Klinik Bilimler (B09-B16) 0.6 ve Ünite Bazlı Ağırlık varsayılan null olmalıdır', () => {
+    for (const branch of CANONICAL_16_BRANCHES) {
+      const expectedWeight = branch.category === 'TEMEL_BILIMLER' ? 0.4 : 0.6;
+      const weightMeta = getCanonicalDusCategoryWeight(branch.code);
+      assert.equal(weightMeta.dusWeight, expectedWeight);
+      assert.equal(weightMeta.category, branch.category);
+    }
+
+    for (const item of INITIAL_TOPIC_TAXONOMY) {
+      const isBasic = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08'].includes(item.branchCode);
+      assert.equal(item.dusWeight, isBasic ? 0.4 : 0.6, `${item.id} (${item.branchCode}) DUS ağırlığı hatalı`);
+      assert.equal(item.category, isBasic ? 'TEMEL_BILIMLER' : 'KLINIK_BILIMLER');
+      assert.equal(item.unitWeight, null, `${item.id} ünite ağırlığı varsayılan olarak null olmalıdır`);
+    }
+  });
+
   it('SWSPS Bilişsel Ceza Skoru: Çeldirici hatası ve düşük FSRS kalıcılığı daha yüksek ceza puanı üretir', () => {
     const highRiskScore = calculateSWSPS({
       errorType: 'Çeldirici', // 1.4

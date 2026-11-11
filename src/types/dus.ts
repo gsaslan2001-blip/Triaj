@@ -233,13 +233,15 @@ export interface MockExamRecord {
 export type CognitiveErrorType = 'Bilgi' | 'Muhakeme' | 'Dikkat' | 'Çeldirici';
 
 export interface TopicTaxonomyItem {
-  id: string;                    // KM-01..KM-50
+  id: string;                    // KM-01..KM-17
   branchCode: CanonicalBranchCode;
   branchName: string;
+  category?: SubjectCategory;    // TEMEL_BILIMLER (0.4) | KLINIK_BILIMLER (0.6)
   mainTopic: string;
   subtopic: string;
   semanticCode: string;          // Örn: ADCC_IMPACT_01, ENDO_ACCESS_01
-  dusWeight: number;             // 1.0 - 2.0
+  dusWeight: number;             // Temel Bilimler: 0.4 | Klinik Bilimler: 0.6
+  unitWeight?: number | null;    // Ünite bazlı ağırlık (Daha sonra eklenecek — varsayılan null)
   fsrsStabilityS: number;        // Örn: 14.5 gün
   fsrsDifficultyD: number;       // 1 - 10 (Örn: 7.2)
   fsrsRetrievabilityR: number;   // 0 - 100 % (Örn: 84)
@@ -260,7 +262,9 @@ export interface SWSPSBreakdown {
   forgettingRisk: number;        // 1 - R_FSRS
   recencyBoost: number;          // 1 + max(0, (14 - Delta_t)/14) * 0.5
   bucketMultiplier: number;      // RED: 1.35 | YELLOW: 1.15 | NONE: 1.00 | GREEN: 0.85
-  branchMultiplier: number;      // 10 soru: 1.15 | 6 soru: 1.00 | 4 soru: 0.90
+  branchMultiplier: number;      // Klinik (0.6 ağırlık): 1.15 | Temel (0.4 ağırlık): 1.00/0.90
+  dusCategoryWeight: number;     // Temel: 0.4 | Klinik: 0.6
+  unitWeight?: number | null;    // Ünite bazlı ağırlık (daha sonra eklenecek)
   mitigationMultiplier: number;  // Bekliyor: 1.00 | Anki Eklendi: 0.60 | Taburcu+Anki: 0.35
   matchedBucket: BucketType;
   matchedTopicId?: string;

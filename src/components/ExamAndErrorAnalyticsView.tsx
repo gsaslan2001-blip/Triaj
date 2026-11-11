@@ -1242,15 +1242,29 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Sekme 9: Konu_Matrisi (KM-01..KM-16 Kanonik Taksonomi & FSRS S/D/R Tablosu) */}
+          {/* Sekme 9: Konu_Matrisi (B01..B16 Kanonik Taksonomi, 0.4/0.6 DUS Ağırlığı & FSRS S/D/R Tablosu) */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-            <div className="p-5 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">
-                Sekme 9: Konu_Matrisi — Kanonik Konu Taksonomisi &amp; FSRS Bellek Parametreleri (S / D / R)
-              </h3>
-              <p className="text-xs text-slate-500">
-                FSRS Retrievability (R%) veya Zorluk (D) değerlerini güncellediğinizde SWSPS ceza skorları anında yeniden hesaplanır.
-              </p>
+            <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Sekme 9: Konu_Matrisi — Kanonik Konu Taksonomisi &amp; FSRS Bellek Parametreleri (S / D / R)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Temel Bilimler DUS ağırlığı <strong>0.4</strong>, Klinik Bilimler DUS ağırlığı <strong>0.6</strong> olarak sabitlenmiştir. Ünite bazlı ağırlıklar daha sonra eklenecektir.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs font-mono shrink-0">
+                <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-900 border border-sky-200 font-bold">
+                  Temel Bilimler (B01–B08): 0.4
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200 font-bold">
+                  Klinik Bilimler (B09–B16): 0.6
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 font-semibold">
+                  Ünite Ağırlığı: Daha Sonra Eklenecek
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -1258,10 +1272,11 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
                 <thead className="bg-slate-900 text-white font-semibold">
                   <tr>
                     <th className="py-2.5 px-3">ID</th>
-                    <th className="py-2.5 px-3">Branş</th>
+                    <th className="py-2.5 px-3">Branş &amp; Grup</th>
                     <th className="py-2.5 px-3">Semantik Kod</th>
                     <th className="py-2.5 px-3">Alt Konu</th>
-                    <th className="py-2.5 px-3 text-center">DUS Ağırlığı</th>
+                    <th className="py-2.5 px-3 text-center">DUS Ders Ağırlığı</th>
+                    <th className="py-2.5 px-3 text-center">Ünite Bazlı Ağırlık</th>
                     <th className="py-2.5 px-3 text-center">Stability (S Gün)</th>
                     <th className="py-2.5 px-3 text-center bg-amber-500 text-slate-950">
                       Difficulty D (1-10)
@@ -1272,53 +1287,92 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
-                  {topicTaxonomy.map(item => (
-                    <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3 font-bold text-slate-700">{item.id}</td>
-                      <td className="py-2 px-3 font-sans font-semibold text-slate-800">
-                        [{item.branchCode}] {item.branchName}
-                      </td>
-                      <td className="py-2 px-3 font-bold text-indigo-700">{item.semanticCode}</td>
-                      <td className="py-2 px-3 font-sans text-slate-700">{item.subtopic}</td>
-                      <td className="py-2 px-3 text-center tabular-nums font-bold">
-                        {item.dusWeight.toFixed(1)}x
-                      </td>
-                      <td className="py-2 px-3 text-center tabular-nums text-slate-700">
-                        {item.fsrsStabilityS}g
-                      </td>
-                      <td className="py-2 px-3 text-center bg-yellow-50/80">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min={1}
-                          max={10}
-                          aria-label={`${item.semanticCode} FSRS Zorluk D`}
-                          value={item.fsrsDifficultyD}
-                          onChange={e =>
-                            updateTaxonomyItem(item.id, {
-                              fsrsDifficultyD: parseFloat(e.target.value) || 5
-                            })
-                          }
-                          className="w-16 px-1.5 py-0.5 bg-yellow-100 border border-yellow-400 rounded text-center font-bold tabular-nums"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-center bg-yellow-50/80">
-                        <input
-                          type="number"
-                          min={10}
-                          max={100}
-                          aria-label={`${item.semanticCode} FSRS Kalıcılık R`}
-                          value={item.fsrsRetrievabilityR}
-                          onChange={e =>
-                            updateTaxonomyItem(item.id, {
-                              fsrsRetrievabilityR: parseInt(e.target.value, 10) || 80
-                            })
-                          }
-                          className="w-16 px-1.5 py-0.5 bg-yellow-100 border border-yellow-400 rounded text-center font-bold tabular-nums"
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {topicTaxonomy.map(item => {
+                    const isClinical =
+                      item.category === 'KLINIK_BILIMLER' ||
+                      ['B09', 'B10', 'B11', 'B12', 'B13', 'B14', 'B15', 'B16'].includes(
+                        item.branchCode
+                      );
+                    const canonicalDusWeight = isClinical ? 0.6 : 0.4;
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50">
+                        <td className="py-2 px-3 font-bold text-slate-700">{item.id}</td>
+                        <td className="py-2 px-3 font-sans">
+                          <div className="font-semibold text-slate-900">
+                            [{item.branchCode}] {item.branchName}
+                          </div>
+                          <span
+                            className={`inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
+                              isClinical
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : 'bg-sky-50 text-sky-700 border border-sky-200'
+                            }`}
+                          >
+                            {isClinical ? 'Klinik Bilimler' : 'Temel Bilimler'}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 font-bold text-indigo-700">{item.semanticCode}</td>
+                        <td className="py-2 px-3 font-sans text-slate-700">{item.subtopic}</td>
+                        <td className="py-2 px-3 text-center tabular-nums">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded font-bold text-xs border ${
+                              isClinical
+                                ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+                                : 'bg-sky-100 text-sky-900 border-sky-300'
+                            }`}
+                          >
+                            {canonicalDusWeight.toFixed(1)}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-center font-sans">
+                          {typeof item.unitWeight === 'number' ? (
+                            <span className="font-mono font-bold text-slate-900">
+                              {item.unitWeight.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-medium">
+                              Daha Sonra Eklenecek
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-center tabular-nums text-slate-700">
+                          {item.fsrsStabilityS}g
+                        </td>
+                        <td className="py-2 px-3 text-center bg-yellow-50/80">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min={1}
+                            max={10}
+                            aria-label={`${item.semanticCode} FSRS Zorluk D`}
+                            value={item.fsrsDifficultyD}
+                            onChange={e =>
+                              updateTaxonomyItem(item.id, {
+                                fsrsDifficultyD: parseFloat(e.target.value) || 5
+                              })
+                            }
+                            className="w-16 px-1.5 py-0.5 bg-yellow-100 border border-yellow-400 rounded text-center font-bold tabular-nums"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center bg-yellow-50/80">
+                          <input
+                            type="number"
+                            min={10}
+                            max={100}
+                            aria-label={`${item.semanticCode} FSRS Kalıcılık R`}
+                            value={item.fsrsRetrievabilityR}
+                            onChange={e =>
+                              updateTaxonomyItem(item.id, {
+                                fsrsRetrievabilityR: parseInt(e.target.value, 10) || 80
+                              })
+                            }
+                            className="w-16 px-1.5 py-0.5 bg-yellow-100 border border-yellow-400 rounded text-center font-bold tabular-nums"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
