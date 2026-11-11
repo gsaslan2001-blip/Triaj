@@ -12,10 +12,6 @@
     {
       "source": "/auth/callback",
       "destination": "/api/index"
-    },
-    {
-      "source": "/((?!api/|auth/callback).*)",
-      "destination": "/index.html"
     }
   ]
 }
