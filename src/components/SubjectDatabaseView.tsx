@@ -5,7 +5,7 @@
  * - Görünüm 3 (Sekme 6): Konu_Takip_Matrisi — 14 Branş Gecikme Günü 3 Renkli Isı Haritası (#A7F3D0 / #FDE68A / #FCA5A5)
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useDUS } from '../context/DUSContext';
 import { TopicUnit, SubjectCategory, CognitiveGroup } from '../types/dus';
 import { TriageModal } from './TriageModal';
@@ -29,7 +29,8 @@ import {
   Table,
   Tag,
   Layers,
-  Grid
+  Grid,
+  X
 } from 'lucide-react';
 
 type UnitStatusFilter = 'ALL' | 'ACTIVE_TRIAGE' | 'NOT_STARTED';
@@ -43,7 +44,9 @@ export const SubjectDatabaseView: React.FC = () => {
     deleteTopic,
     clearTopicScheduledTask,
     inlineUpdateTopicPlan,
-    todayStr
+    todayStr,
+    focusedSubjectId,
+    setFocusedSubjectId
   } = useDUS();
 
   // View Mode Switcher
@@ -57,7 +60,17 @@ export const SubjectDatabaseView: React.FC = () => {
   const [selectedMatrixSubjectId, setSelectedMatrixSubjectId] = useState<string>('ALL');
 
   // Expanded subject cards
-  const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>('B01');
+  const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(
+    focusedSubjectId || 'B01'
+  );
+
+  // Başka sekmeden belirli bir derse odaklanılarak gelindiyse otomatik o dersi aç
+  useEffect(() => {
+    if (focusedSubjectId) {
+      setExpandedSubjectId(focusedSubjectId);
+      setSelectedMatrixSubjectId(focusedSubjectId);
+    }
+  }, [focusedSubjectId]);
 
   // New Topic Form Modal state
   const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false);
@@ -79,6 +92,7 @@ export const SubjectDatabaseView: React.FC = () => {
   // Filtered subjects
   const filteredSubjects = useMemo(() => {
     return subjects.filter(sub => {
+      if (focusedSubjectId && sub.id !== focusedSubjectId) return false;
       if (categoryFilter !== 'ALL' && sub.category !== categoryFilter) return false;
       if (cognitiveFilter !== 'ALL' && sub.cognitiveGroup !== cognitiveFilter) return false;
 
@@ -104,13 +118,14 @@ export const SubjectDatabaseView: React.FC = () => {
 
       return true;
     });
-  }, [subjects, topics, categoryFilter, cognitiveFilter, unitStatusFilter, searchQuery]);
+  }, [subjects, topics, focusedSubjectId, categoryFilter, cognitiveFilter, unitStatusFilter, searchQuery]);
 
   // Flat filtered topics for Tekrar_Plani table
   const filteredFlatTopics = useMemo(() => {
     return topics.filter(t => {
       const sub = subjects.find(s => s.id === t.subjectId);
       if (!sub) return false;
+      if (focusedSubjectId && sub.id !== focusedSubjectId) return false;
       if (categoryFilter !== 'ALL' && sub.category !== categoryFilter) return false;
       if (cognitiveFilter !== 'ALL' && sub.cognitiveGroup !== cognitiveFilter) return false;
       if (unitStatusFilter === 'ACTIVE_TRIAGE' && t.status === 'NOT_STARTED') return false;
@@ -126,7 +141,7 @@ export const SubjectDatabaseView: React.FC = () => {
       }
       return true;
     });
-  }, [topics, subjects, categoryFilter, cognitiveFilter, unitStatusFilter, searchQuery]);
+  }, [topics, subjects, focusedSubjectId, categoryFilter, cognitiveFilter, unitStatusFilter, searchQuery]);
 
   const handleCreateTopic = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,45 +159,59 @@ export const SubjectDatabaseView: React.FC = () => {
     setExpandedSubjectId(newTopicSubjectId);
   };
 
+  const focusedSubObj = focusedSubjectId
+    ? subjects.find(s => s.id === focusedSubjectId)
+    : null;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Üst Filtreler, Görünüm Seçici & Başlık */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="apple-card p-4 space-y-3.5">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              UNITS.md · ExcelMaster Sekme 2 (Tekrar_Plani) &amp; Sekme 6 (Konu_Takip_Matrisi)
+            <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+              UNITS.md · Sekme 2 (Tekrar_Plani) &amp; Sekme 6 (Konu_Takip_Matrisi)
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mt-0.5">
+            <h2 className="text-base font-bold text-zinc-900 mt-0.5 tracking-tight">
               14 Ders Bloğu (15 Temel DUS Dersi) &amp; {topics.length} Konsolide Ünite
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] text-zinc-500 mt-0.5">
               Temel Bilimler: {temelSubjectsCount} Blok ({temelUnitsCount} Ünite · 40 Soru · %33.33) &amp; Klinik Bilimler: {klinikSubjectsCount} Blok ({klinikUnitsCount} Ünite · 80 Soru · %66.67)
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {focusedSubObj && (
+              <button
+                type="button"
+                onClick={() => setFocusedSubjectId(null)}
+                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <span>Filtre: [{focusedSubObj.code}] {focusedSubObj.name}</span>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsAddTopicModalOpen(true)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
+              className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Yeni Konu / Ünite Ekle</span>
             </button>
           </div>
         </div>
 
-        {/* 3'lü Görünüm Seçici (Ders Blokları vs Tekrar_Plani Inline Tablo vs Konu_Takip_Matrisi Isı Haritası) */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+        {/* 3'lü Görünüm Seçici (Apple Segmented Control) */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-1 apple-segmented">
             <button
               type="button"
               onClick={() => setViewMode('SUBJECT_CARDS')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-[9px] text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 viewMode === 'SUBJECT_CARDS'
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'apple-segmented-active text-zinc-900'
+                  : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -192,10 +221,10 @@ export const SubjectDatabaseView: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('TEKRAR_PLANI')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-[9px] text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 viewMode === 'TEKRAR_PLANI'
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'apple-segmented-active text-zinc-900'
+                  : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <Table className="w-3.5 h-3.5" />
@@ -205,10 +234,10 @@ export const SubjectDatabaseView: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('KONU_TAKIP_MATRISI')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-[9px] text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 viewMode === 'KONU_TAKIP_MATRISI'
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'apple-segmented-active text-zinc-900'
+                  : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -217,8 +246,8 @@ export const SubjectDatabaseView: React.FC = () => {
           </div>
 
           {viewMode === 'KONU_TAKIP_MATRISI' && (
-            <div className="flex items-center gap-2 text-[11px] font-mono">
-              <span className="font-sans text-slate-500">Gecikme Isı Haritası:</span>
+            <div className="flex items-center gap-1.5 text-[10px] font-mono">
+              <span className="font-sans text-zinc-500">Gecikme Isı Haritası:</span>
               <span className="px-2 py-0.5 rounded font-semibold" style={{ backgroundColor: '#A7F3D0' }}>
                 0 Gün: Zamanında
               </span>
@@ -233,26 +262,26 @@ export const SubjectDatabaseView: React.FC = () => {
         </div>
 
         {/* Filtre ve Arama Çubuğu */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 pt-0.5">
           <div className="md:col-span-4 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="K0001..K0227, ünite veya ders ara..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
-          <div className="md:col-span-4 flex items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs">
+          <div className="md:col-span-4 flex items-center gap-1 apple-segmented text-xs">
             <button
               type="button"
               onClick={() => setCategoryFilter('ALL')}
-              className={`flex-1 py-1.5 px-2 font-medium rounded-md transition-colors ${
+              className={`flex-1 py-1 px-2 font-medium rounded-[9px] transition-all ${
                 categoryFilter === 'ALL'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'apple-segmented-active text-zinc-900 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               Tümü ({topics.length} Ünite)
@@ -260,10 +289,10 @@ export const SubjectDatabaseView: React.FC = () => {
             <button
               type="button"
               onClick={() => setCategoryFilter('TEMEL_BILIMLER')}
-              className={`flex-1 py-1.5 px-2 font-medium rounded-md transition-colors ${
+              className={`flex-1 py-1 px-2 font-medium rounded-[9px] transition-all ${
                 categoryFilter === 'TEMEL_BILIMLER'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'apple-segmented-active text-zinc-900 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               Temel ({temelUnitsCount})
@@ -271,10 +300,10 @@ export const SubjectDatabaseView: React.FC = () => {
             <button
               type="button"
               onClick={() => setCategoryFilter('KLINIK_BILIMLER')}
-              className={`flex-1 py-1.5 px-2 font-medium rounded-md transition-colors ${
+              className={`flex-1 py-1 px-2 font-medium rounded-[9px] transition-all ${
                 categoryFilter === 'KLINIK_BILIMLER'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'apple-segmented-active text-zinc-900 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               Klinik ({klinikUnitsCount})
@@ -286,7 +315,7 @@ export const SubjectDatabaseView: React.FC = () => {
               aria-label="Ünite Durum Filtresi"
               value={unitStatusFilter}
               onChange={e => setUnitStatusFilter(e.target.value as UnitStatusFilter)}
-              className="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="ALL">Durum: Tüm Üniteler</option>
               <option value="ACTIVE_TRIAGE">Çalışılan / Triyajda</option>
@@ -299,7 +328,7 @@ export const SubjectDatabaseView: React.FC = () => {
               aria-label="Bilişsel Grup Filtresi"
               value={cognitiveFilter}
               onChange={e => setCognitiveFilter(e.target.value as 'ALL' | CognitiveGroup)}
-              className="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="ALL">Bilişsel: Tümü</option>
               <option value="GRUP_A">Grup A: Saf Ezber</option>
@@ -312,7 +341,7 @@ export const SubjectDatabaseView: React.FC = () => {
 
       {/* GÖRÜNÜM 1: KANONİK DERS BLOKLARI VE PROTOKOL KARTLARI */}
       {viewMode === 'SUBJECT_CARDS' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredSubjects.map(sub => {
             const allSubTopics = topics
               .filter(t => t.subjectId === sub.id)

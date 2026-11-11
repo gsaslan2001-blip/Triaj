@@ -1,1 +1,78 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --apple-canvas: #f5f5f7;
+    --apple-surface: #ffffff;
+    --apple-surface-subtle: #fbfbfd;
+    --apple-border: rgba(15, 23, 42, 0.08);
+    --apple-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.035);
+    --apple-shadow-elevated: 0 4px 12px rgba(15, 23, 42, 0.06), 0 20px 40px -8px rgba(15, 23, 42, 0.10);
+  }
+
+  html {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--apple-canvas);
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--apple-canvas);
+    color: #0f172a;
+    overflow-x: hidden;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Luxury Apple Card & Frosted Glass Surfaces */
+.apple-card {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--apple-shadow-card);
+  border-radius: 1rem;
+}
+
+.apple-subcard {
+  background-color: var(--apple-surface-subtle);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 0.75rem;
+}
+
+.apple-segmented {
+  background-color: rgba(226, 232, 240, 0.72);
+  padding: 0.2rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+.apple-segmented-active {
+  background-color: #ffffff;
+  color: #09090b;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04);
+}
+
+/* Custom Sleek Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
+}

@@ -1,9 +1,9 @@
 /**
- * Uygulama Başlığı ve Ana Navigasyon
+ * Uygulama Başlığı ve Ana Navigasyon — Apple-Inspired Luxury Frosted Command Bar
  */
 
 import React, { useState } from 'react';
-import { useDUS } from '../context/DUSContext';
+import { useDUS, ActiveAppTab } from '../context/DUSContext';
 import {
   Calendar,
   Layers,
@@ -25,7 +25,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-export type ActiveTab = 'planner' | 'subjects' | 'analytics' | 'report' | 'notifications';
+export type ActiveTab = ActiveAppTab;
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const {
     notifications,
+    topics,
     soundEnabled,
     toggleSound,
     exportDataJSON,
@@ -59,7 +60,8 @@ export const Header: React.FC<HeaderProps> = ({
     cloudDomainNotice,
     signInToCloud,
     signOutOfCloud,
-    forceCloudSync
+    forceCloudSync,
+    setFocusedSubjectId
   } = useDUS();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `DUS_Kova_Triyaj_Yedek_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `Triyaj_Yedek_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
     setMenuOpen(false);
@@ -98,25 +100,24 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-40">
+    <header className="bg-zinc-950/92 backdrop-blur-xl text-white border-b border-white/10 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-6">
         {/* Üst Komuta Satırı: Marka Kimliği — Ana Sekmeler — Aksiyon & Araç Çubuğu */}
-        <div className="flex items-center justify-between gap-2 h-15">
+        <div className="flex items-center justify-between gap-2 h-13">
           {/* Sol: Marka, Triyaj Logosu & Proje Açıklaması */}
           <button
             type="button"
             onClick={() => setActiveTab('planner')}
-            className="flex items-center gap-2 shrink-0 text-left group focus:outline-hidden"
+            className="flex items-center gap-2.5 shrink-0 text-left group focus:outline-hidden"
             aria-label="Triyaj Ana Sayfa"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 via-indigo-500/15 to-rose-500/20 border border-emerald-500/35 group-hover:border-emerald-400/60 flex items-center justify-center shrink-0 shadow-2xs transition-colors">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/20 via-indigo-500/15 to-rose-500/20 border border-white/15 group-hover:border-emerald-400/60 flex items-center justify-center shrink-0 shadow-2xs transition-all">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
-                className="w-5 h-5"
+                className="w-4.5 h-4.5"
                 aria-hidden="true"
               >
-                {/* Üst Yeşil Kova Katmanı */}
                 <path
                   d="M12 3L20 7.5L12 12L4 7.5L12 3Z"
                   fill="#10B981"
@@ -125,7 +126,6 @@ export const Header: React.FC<HeaderProps> = ({
                   strokeWidth="1.75"
                   strokeLinejoin="round"
                 />
-                {/* Orta Sarı Kova Katmanı */}
                 <path
                   d="M4 12L12 16.5L20 12"
                   stroke="#FBBF24"
@@ -133,7 +133,6 @@ export const Header: React.FC<HeaderProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {/* Alt Kırmızı Kova Katmanı */}
                 <path
                   d="M4 16.5L12 21L20 16.5"
                   stroke="#FB7185"
@@ -144,32 +143,32 @@ export const Header: React.FC<HeaderProps> = ({
               </svg>
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-base font-extrabold text-white tracking-tight whitespace-nowrap">
+              <div className="flex items-center gap-1.5 leading-none">
+                <h1 className="text-[15px] font-bold text-white tracking-tight whitespace-nowrap">
                   Triyaj
                 </h1>
-                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono text-emerald-400 font-semibold whitespace-nowrap">
-                  DUS · {daysLeft}G
+                <span className="px-1.5 py-0.5 rounded-md bg-white/[0.08] border border-white/10 text-[10px] font-mono text-emerald-400 font-semibold whitespace-nowrap tabular-nums">
+                  {daysLeft}G · {systemParams.targetTotalNet} Net
                 </span>
               </div>
-              <div className="text-[11px] text-slate-400 flex items-center gap-1 whitespace-nowrap">
-                <span>Bilişsel Kova &amp; Çalışma Sistemi</span>
+              <div className="text-[10px] text-zinc-400 font-medium tracking-tight mt-0.5 whitespace-nowrap">
+                Bilişsel Kova &amp; Çalışma Sistemi
               </div>
             </div>
           </button>
 
-          {/* Orta: Ana Navigasyon Sekmeleri (Masaüstü) */}
+          {/* Orta: Ana Navigasyon Sekmeleri (Apple Segmented Control) */}
           <nav
             aria-label="Ana Navigasyon"
-            className="hidden lg:flex items-center gap-0.5 bg-slate-900/90 border border-slate-800 p-1 rounded-xl"
+            className="hidden lg:flex items-center gap-0.5 bg-white/[0.06] border border-white/10 p-0.5 rounded-xl"
           >
             <button
               type="button"
               onClick={() => setActiveTab('planner')}
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[9px] transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'planner'
-                  ? 'bg-white text-slate-950 font-semibold shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                  ? 'bg-white text-zinc-950 font-semibold shadow-xs'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -178,24 +177,27 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveTab('subjects')}
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              onClick={() => {
+                setFocusedSubjectId(null);
+                setActiveTab('subjects');
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[9px] transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'subjects'
-                  ? 'bg-white text-slate-950 font-semibold shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                  ? 'bg-white text-zinc-950 font-semibold shadow-xs'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Müfredat (227)</span>
+              <span>Müfredat ({topics.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('notifications')}
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[9px] transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'notifications'
-                  ? 'bg-white text-slate-950 font-semibold shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                  ? 'bg-white text-zinc-950 font-semibold shadow-xs'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
@@ -212,10 +214,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('analytics')}
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[9px] transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'analytics'
-                  ? 'bg-white text-slate-950 font-semibold shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                  ? 'bg-white text-zinc-950 font-semibold shadow-xs'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5" />
@@ -225,10 +227,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('report')}
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[9px] transition-all whitespace-nowrap shrink-0 ${
                 activeTab === 'report'
-                  ? 'bg-white text-slate-950 font-semibold shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                  ? 'bg-white text-zinc-950 font-semibold shadow-xs'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -238,7 +240,7 @@ export const Header: React.FC<HeaderProps> = ({
                   activeTab === 'report' ? 'text-indigo-700' : 'text-amber-400'
                 }`}
               >
-                ({report.urgentTasks.length})
+                ({report.greenBucket + report.yellowBucket + report.redBucket})
               </span>
               {report.redAlarmActive && (
                 <ShieldAlert className="w-3.5 h-3.5 text-rose-500 shrink-0" />
@@ -252,11 +254,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => forceCloudSync()}
-                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-700/60 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/30 rounded-lg transition-colors whitespace-nowrap shrink-0"
                 title={
                   lastCloudSyncedAt
-                    ? `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Google Hesabı'}) · Son Eşitleme: ${lastCloudSyncedAt}`
-                    : `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Google Hesabı'})`
+                    ? `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Bulut'}) · Son Eşitleme: ${lastCloudSyncedAt}`
+                    : `Bulut Senkronizasyonu Aktif (${cloudUser.email || 'Bulut'})`
                 }
               >
                 <Cloud
@@ -272,8 +274,8 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => signInToCloud()}
-                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                title="Cihazlar arası gerçek zamanlı bulut senkronizasyonu için Google ile bağlan"
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-zinc-200 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                title="Cihazlar arası gerçek zamanlı bulut senkronizasyonu için bağlan"
               >
                 <Cloud className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                 <span className="hidden sm:inline">Bulut Bağla</span>
@@ -283,7 +285,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenDeepSeek}
-              className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-2xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-2xs"
               title="Deploy.com DeepSeek v4.1 Flash (1017) Bilişsel DUS Motoru"
             >
               <Cpu className="w-3.5 h-3.5 shrink-0" />
@@ -291,49 +293,49 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Birleştirilmiş Araç Grubu */}
-            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+            <div className="flex items-center bg-white/[0.06] border border-white/10 rounded-lg p-0.5">
               <button
                 type="button"
                 onClick={onOpenSystemParams}
-                className="px-1.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors flex items-center gap-1 whitespace-nowrap"
+                className="px-1.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white hover:bg-white/10 rounded-md transition-colors flex items-center gap-1 whitespace-nowrap"
                 title="Hedef Net ve Sistem Parametreleri (SSOT)"
               >
-                <Sliders className="w-3.5 h-3.5 text-slate-400" />
+                <Sliders className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Ayarlar</span>
               </button>
 
               <button
                 type="button"
                 onClick={onOpenGuide}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+                className="p-1 text-zinc-300 hover:text-white hover:bg-white/10 rounded-md transition-colors"
                 title="Sistem Kullanım ve Veri Giriş Rehberi"
                 aria-label="Giriş Rehberi"
               >
-                <HelpCircle className="w-4 h-4" />
+                <HelpCircle className="w-3.5 h-3.5" />
               </button>
 
               <button
                 type="button"
                 onClick={toggleSound}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+                className="p-1 text-zinc-300 hover:text-white hover:bg-white/10 rounded-md transition-colors"
                 title={soundEnabled ? 'Sesleri Kapat' : 'Sesleri Aç'}
                 aria-label="Ses Ayarı"
               >
                 {soundEnabled ? (
-                  <Volume2 className="w-4 h-4 text-emerald-400" />
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
-                  <VolumeX className="w-4 h-4 text-slate-500" />
+                  <VolumeX className="w-3.5 h-3.5 text-zinc-500" />
                 )}
               </button>
 
               <button
                 type="button"
                 onClick={onOpenNotifications}
-                className="relative p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+                className="relative p-1 text-zinc-300 hover:text-white hover:bg-white/10 rounded-md transition-colors"
                 aria-label="Bildirimler"
                 title="Bekleyen Triyaj Bildirimleri"
               >
-                <Bell className="w-4 h-4" />
+                <Bell className="w-3.5 h-3.5" />
                 {notifications.length > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white tabular-nums">
                     {notifications.length}
@@ -345,20 +347,20 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setMenuOpen(!menuOpen)}
-                  className="px-2 py-1.5 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium rounded-md transition-colors whitespace-nowrap"
+                  className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-white/10 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap"
                 >
                   Yedek
                 </button>
 
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-xs text-slate-800">
+                  <div className="absolute right-0 mt-2 w-72 bg-white/95 backdrop-blur-xl border border-zinc-200 rounded-2xl shadow-xl py-2 z-50 text-xs text-zinc-800">
                     {cloudUser ? (
                       <>
-                        <div className="px-4 py-2 border-b border-slate-100">
-                          <div className="font-semibold text-slate-900 truncate">
-                            {cloudUser.displayName || 'Google Bulut Hesabı'}
+                        <div className="px-4 py-2 border-b border-zinc-100">
+                          <div className="font-semibold text-zinc-900 truncate">
+                            {cloudUser.displayName || 'Bulut Çalışma Alanı'}
                           </div>
-                          <div className="text-[11px] text-slate-500 truncate">
+                          <div className="text-[11px] text-zinc-500 truncate">
                             {cloudUser.email}
                           </div>
                           {cloudDomainNotice && (
@@ -389,7 +391,7 @@ export const Header: React.FC<HeaderProps> = ({
                             forceCloudSync();
                             setMenuOpen(false);
                           }}
-                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 transition-colors"
+                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-zinc-700 hover:bg-zinc-50 transition-colors"
                         >
                           <RefreshCw className="w-4 h-4 text-emerald-600" />
                           <span>Şimdi Bulutla Eşitle</span>
@@ -400,12 +402,12 @@ export const Header: React.FC<HeaderProps> = ({
                             signOutOfCloud();
                             setMenuOpen(false);
                           }}
-                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 transition-colors"
+                          className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-zinc-700 hover:bg-zinc-50 transition-colors"
                         >
-                          <LogOut className="w-4 h-4 text-slate-500" />
+                          <LogOut className="w-4 h-4 text-zinc-500" />
                           <span>Bulut Oturumunu Kapat</span>
                         </button>
-                        <div className="border-t border-slate-100 my-1" />
+                        <div className="border-t border-zinc-100 my-1" />
                       </>
                     ) : (
                       <>
@@ -418,23 +420,23 @@ export const Header: React.FC<HeaderProps> = ({
                           className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-indigo-700 font-semibold hover:bg-indigo-50 transition-colors"
                         >
                           <Cloud className="w-4 h-4 text-indigo-600" />
-                          <span>Google ile Bulut Senkronu Aç</span>
+                          <span>Bulut Senkronu Aç</span>
                         </button>
-                        <div className="border-t border-slate-100 my-1" />
+                        <div className="border-t border-zinc-100 my-1" />
                       </>
                     )}
 
                     <button
                       type="button"
                       onClick={handleExport}
-                      className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-zinc-700 hover:bg-zinc-50 transition-colors"
                     >
-                      <Download className="w-4 h-4 text-slate-500" />
+                      <Download className="w-4 h-4 text-zinc-500" />
                       <span>JSON Veri Yedek İndir</span>
                     </button>
 
-                    <label className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
-                      <Upload className="w-4 h-4 text-slate-500" />
+                    <label className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-zinc-700 hover:bg-zinc-50 transition-colors cursor-pointer">
+                      <Upload className="w-4 h-4 text-zinc-500" />
                       <span>Yedekten Geri Yükle</span>
                       <input
                         type="file"
@@ -444,7 +446,7 @@ export const Header: React.FC<HeaderProps> = ({
                       />
                     </label>
 
-                    <div className="border-t border-slate-100 my-1" />
+                    <div className="border-t border-zinc-100 my-1" />
 
                     <button
                       type="button"
@@ -467,15 +469,15 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Mobil / Tablet Navigasyon Satırı (Yalnızca <lg ekranlarda görünür) */}
         <nav
           aria-label="Mobil Navigasyon"
-          className="flex lg:hidden items-center gap-1 overflow-x-auto py-2 border-t border-slate-800/80"
+          className="flex lg:hidden items-center gap-1 overflow-x-auto py-1.5 border-t border-white/10"
         >
           <button
             type="button"
             onClick={() => setActiveTab('planner')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'planner'
-                ? 'bg-white text-slate-950 font-semibold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                ? 'bg-white text-zinc-950 font-semibold'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
@@ -484,50 +486,53 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('subjects')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+            onClick={() => {
+              setFocusedSubjectId(null);
+              setActiveTab('subjects');
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'subjects'
-                ? 'bg-white text-slate-950 font-semibold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                ? 'bg-white text-zinc-950 font-semibold'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Müfredat &amp; Konu Matrisi</span>
+            <span>Müfredat ({topics.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('notifications')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'notifications'
-                ? 'bg-white text-slate-950 font-semibold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                ? 'bg-white text-zinc-950 font-semibold'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>Tekrar Takvimi ({notifications.length})</span>
+            <span>Tekrar Takvimi ({report.urgentTasks.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('analytics')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'analytics'
-                ? 'bg-white text-slate-950 font-semibold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                ? 'bg-white text-zinc-950 font-semibold'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>Deneme &amp; Hata Analizi</span>
+            <span>Deneme &amp; SWSPS</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('report')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'report'
-                ? 'bg-white text-slate-950 font-semibold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                ? 'bg-white text-zinc-950 font-semibold'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
@@ -538,3 +543,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

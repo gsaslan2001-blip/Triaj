@@ -58,10 +58,12 @@ export const NotificationCalendarView: React.FC = () => {
     rescheduleTopicTask,
     clearTopicScheduledTask,
     deleteTriageLog,
-    systemParams
+    systemParams,
+    calendarSubTab: subTab,
+    setCalendarSubTab: setSubTab,
+    navigateToSubject
   } = useDUS();
 
-  const [subTab, setSubTab] = useState<CalendarSubTab>('HEATMAP_CALENDAR');
   const [activeModalTopic, setActiveModalTopic] = useState<TopicUnit | null>(null);
 
   // Aylık Takvim Durumu (Varsayılan: bugünün ayı)
@@ -265,15 +267,15 @@ export const NotificationCalendarView: React.FC = () => {
   const selectedDayTasks = tasksByDate.get(selectedDateStr) || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Üst Başlık, Bildirim Kontrolleri ve Sekme Seçici */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="apple-card p-4 space-y-3.5">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               ExcelMaster Sekme 3 · Sekme 4 · Sekme 5 — Ebbinghaus Gecikmeli Takip Motoru
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mt-0.5">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight mt-0.5">
               5 Kademeli Yoğunluk Isı Haritası Takvimi, Sürükle-Bırak Görevler &amp; Tekrar Kuyruğu
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -314,13 +316,13 @@ export const NotificationCalendarView: React.FC = () => {
 
         {/* Alt Görünüm Seçici */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+          <div className="apple-segmented flex-wrap">
             <button
               type="button"
               onClick={() => setSubTab('HEATMAP_CALENDAR')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 subTab === 'HEATMAP_CALENDAR'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -331,9 +333,9 @@ export const NotificationCalendarView: React.FC = () => {
             <button
               type="button"
               onClick={() => setSubTab('PRIORITY_QUEUE')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 subTab === 'PRIORITY_QUEUE'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -344,9 +346,9 @@ export const NotificationCalendarView: React.FC = () => {
             <button
               type="button"
               onClick={() => setSubTab('AUDIT_LOG')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 subTab === 'AUDIT_LOG'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -814,9 +816,13 @@ export const NotificationCalendarView: React.FC = () => {
                       <td className="py-2.5 px-4 font-bold text-slate-700">{topic.topicCode}</td>
                       <td className="py-2.5 px-4 font-sans">
                         <div className="font-bold text-slate-900">{topic.title}</div>
-                        <div className="text-[11px] text-slate-500">
-                          [{sub?.code}] {sub?.name}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => sub && navigateToSubject(sub.id)}
+                          className="text-[11px] text-indigo-600 hover:underline font-medium"
+                        >
+                          [{sub?.code}] {sub?.name} (Üniteye Git)
+                        </button>
                       </td>
                       <td className="py-2.5 px-4 font-sans">
                         <span

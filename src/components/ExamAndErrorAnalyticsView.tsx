@@ -11,8 +11,10 @@ import { useDUS } from '../context/DUSContext';
 import {
   CanonicalBranchCode,
   CognitiveErrorType,
-  QuestionFormatType
+  QuestionFormatType,
+  TopicUnit
 } from '../types/dus';
+import { TriageModal } from './TriageModal';
 import {
   CANONICAL_16_BRANCHES,
   calculateSWSPS,
@@ -58,10 +60,13 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
     ankiSnapshot,
     updateAnkiSnapshot,
     systemParams,
-    todayStr
+    todayStr,
+    analyticsSubTab: activeSubTab,
+    setAnalyticsSubTab: setActiveSubTab,
+    navigateToSubject
   } = useDUS();
 
-  const [activeSubTab, setActiveSubTab] = useState<AnalyticsTab>('MOCK_EXAMS');
+  const [activeRepairTopic, setActiveRepairTopic] = useState<TopicUnit | null>(null);
 
   // --- 1. DENEME_ANALIZ STATE ---
   const [isNewExamOpen, setIsNewExamOpen] = useState(false);
@@ -273,15 +278,15 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
   }, [latestExam]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Üst Başlık ve 4 Analitik Modül Seçici */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="apple-card p-4 space-y-3.5">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               Excel-to-App Mimari Kılavuzu · Sekme 7, 8, 9, 10, 11 ve 12
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mt-0.5">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight mt-0.5">
               16 Branş Deneme Analizi, SWSPS Bilişsel Ceza Motoru, Soru/Hız Kronometresi &amp; FSRS
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -289,13 +294,13 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+          <div className="apple-segmented flex-wrap">
             <button
               type="button"
               onClick={() => setActiveSubTab('MOCK_EXAMS')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeSubTab === 'MOCK_EXAMS'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -306,9 +311,9 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSubTab('SWSPS_ERRORS')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeSubTab === 'SWSPS_ERRORS'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -319,9 +324,9 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSubTab('QUESTION_SPEED_LOG')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeSubTab === 'QUESTION_SPEED_LOG'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -332,9 +337,9 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSubTab('ANKI_FSRS')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeSubTab === 'ANKI_FSRS'
-                  ? 'bg-slate-900 text-white shadow-2xs'
+                  ? 'apple-segmented-active'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -1152,12 +1157,17 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
                             <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono text-[11px] font-bold">
                               {err.semanticCode}
                             </span>
-                            <span className="text-xs font-bold text-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => navigateToSubject(err.branchCode)}
+                              className="text-xs font-bold text-slate-800 hover:text-indigo-600 hover:underline transition-colors"
+                              title="Müfredatta bu branşa git"
+                            >
                               [{err.branchCode}] {err.branchName}
-                            </span>
+                            </button>
                           </div>
 
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             {bd && (
                               <span
                                 className={`px-2 py-0.5 rounded border font-mono text-[10px] font-bold ${kovaChipCls}`}
@@ -1168,6 +1178,19 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
                             <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold">
                               {err.errorType}
                             </span>
+                            {bd?.matchedTopicId && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const foundTopic = topics.find(t => t.id === bd.matchedTopicId);
+                                  if (foundTopic) setActiveRepairTopic(foundTopic);
+                                }}
+                                className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-semibold transition-colors"
+                                title="Bağlı üniteyi doğrudan test et / kova triyajına sok (SWSPS puanı anında güncellenir)"
+                              >
+                                Üniteyi Onar / Triyaj
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => toggleSemanticErrorAnkiStatus(err.id)}
@@ -1876,6 +1899,11 @@ export const ExamAndErrorAnalyticsView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bağlı Ünite Hızlı Onarım / Triyaj Modalı */}
+      {activeRepairTopic && (
+        <TriageModal topic={activeRepairTopic} onClose={() => setActiveRepairTopic(null)} />
       )}
     </div>
   );

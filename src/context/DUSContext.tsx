@@ -79,8 +79,24 @@ import {
 } from '../lib/firebase';
 
 export type CloudSyncStatus = 'OFFLINE' | 'CONNECTING' | 'SYNCING' | 'SYNCED' | 'ERROR';
+export type ActiveAppTab = 'planner' | 'subjects' | 'notifications' | 'analytics' | 'report';
+export type AnalyticsSubTab = 'MOCK_EXAMS' | 'SWSPS_ERRORS' | 'QUESTION_SPEED_LOG' | 'ANKI_FSRS';
+export type CalendarSubTab = 'HEATMAP_CALENDAR' | 'PRIORITY_QUEUE' | 'AUDIT_LOG';
 
 interface DUSContextType {
+  // Navigation & Deep-Link State (Cross-Tab Interconnectivity)
+  activeTab: ActiveAppTab;
+  setActiveTab: (tab: ActiveAppTab) => void;
+  focusedSubjectId: string | null;
+  setFocusedSubjectId: (subjectId: string | null) => void;
+  analyticsSubTab: AnalyticsSubTab;
+  setAnalyticsSubTab: (subTab: AnalyticsSubTab) => void;
+  calendarSubTab: CalendarSubTab;
+  setCalendarSubTab: (subTab: CalendarSubTab) => void;
+  navigateToSubject: (subjectId: string) => void;
+  navigateToAnalytics: (subTab?: AnalyticsSubTab) => void;
+  navigateToCalendar: (subTab?: CalendarSubTab) => void;
+
   // Core State
   subjects: DUSSubject[];
   topics: TopicUnit[];
@@ -246,6 +262,27 @@ function playGentleChime() {
 const DEFAULT_SEED_TRIAGE_LOGS: TriageRecord[] = [];
 
 export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Navigation & Deep-Link State
+  const [activeTab, setActiveTab] = useState<ActiveAppTab>('planner');
+  const [focusedSubjectId, setFocusedSubjectId] = useState<string | null>(null);
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<AnalyticsSubTab>('MOCK_EXAMS');
+  const [calendarSubTab, setCalendarSubTab] = useState<CalendarSubTab>('HEATMAP_CALENDAR');
+
+  const navigateToSubject = useCallback((subjectId: string) => {
+    setFocusedSubjectId(subjectId);
+    setActiveTab('subjects');
+  }, []);
+
+  const navigateToAnalytics = useCallback((subTab: AnalyticsSubTab = 'MOCK_EXAMS') => {
+    setAnalyticsSubTab(subTab);
+    setActiveTab('analytics');
+  }, []);
+
+  const navigateToCalendar = useCallback((subTab: CalendarSubTab = 'HEATMAP_CALENDAR') => {
+    setCalendarSubTab(subTab);
+    setActiveTab('notifications');
+  }, []);
+
   const [todayStr] = useState<string>(getTodayString());
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState<boolean>(() => {
@@ -628,7 +665,6 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       workspaceRef,
       snapshot => {
         if (!snapshot.exists()) {
-          // Bulutta henüz kayıt yoksa mevcut cihazdaki verileri buluta yükle
           hasRemoteDocRef.current = false;
           const initialFingerprint = computeWorkspaceFingerprint(latestSnapshotRef.current);
           lastSyncedFingerprintRef.current = initialFingerprint;
@@ -653,7 +689,6 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         hasRemoteDocRef.current = true;
 
-        // Kendi bekleyen yazma işlemimiz sürüyorsa yerel state'i ezme
         if (
           (snapshot.metadata.hasPendingWrites || isSavingToCloudRef.current) &&
           isCloudHydratedRef.current
@@ -666,7 +701,6 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const { snapshot: parsed, hadLegacyDemoData } = parsedResult;
           const incomingFingerprint = computeWorkspaceFingerprint(parsed);
 
-          // Eğer gelen bulut verisi zaten yerel durumumuzla aynıysa hiçbir state'i tetikleme
           if (
             isCloudHydratedRef.current &&
             incomingFingerprint === lastSyncedFingerprintRef.current &&
@@ -690,7 +724,6 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setSystemParams(parsed.systemParams);
           isCloudHydratedRef.current = true;
 
-          // Eğer bulutta eski demo kayıtları (DENEME-01..04 veya demo takvim görevleri) vardıysa temizlenmiş halini hemen buluta yaz
           if (hadLegacyDemoData) {
             isSavingToCloudRef.current = true;
             setCloudSyncStatus('SYNCING');
@@ -750,7 +783,6 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Parmak izini hemen güncelle ki gelen eski snapshot yerel silme/düzenleme işlemini geri almasın
     lastSyncedFingerprintRef.current = currentFingerprint;
     isSavingToCloudRef.current = true;
     setCloudSyncStatus('SYNCING');
@@ -760,7 +792,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetch('/api/workspace', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studyDate: todayStr, updatedAt: new Date().toISOString() })
+          body: JSON.stringify({ ...currentSnapshot, updatedAt: new Date().toISOString() })
         })
           .catch(() => {})
           .finally(() => {
@@ -820,7 +852,10 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await fetch('/api/workspace', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studyDate: todayStr, updatedAt: new Date().toISOString() })
+          body: JSON.stringify({
+            ...latestSnapshotRef.current,
+            updatedAt: new Date().toISOString()
+          })
         }).catch(() => {});
         setCloudSyncStatus('SYNCED');
         setLastCloudSyncedAt(
@@ -830,7 +865,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       setCloudSyncStatus('OFFLINE');
     }
-  }, [cloudUser, todayStr]);
+  }, [cloudUser]);
 
   const signOutOfCloud = useCallback(async () => {
     await signOutFromCloud();
@@ -847,7 +882,10 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await fetch('/api/workspace', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studyDate: todayStr, updatedAt: new Date().toISOString() })
+          body: JSON.stringify({
+            ...latestSnapshotRef.current,
+            updatedAt: new Date().toISOString()
+          })
         }).catch(() => {});
       } else {
         await saveCloudWorkspace(
@@ -864,7 +902,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       setCloudSyncStatus('ERROR');
     }
-  }, [cloudUser, todayStr]);
+  }, [cloudUser]);
 
   // Reactive Notifications
   const notifications = useMemo(() => {
@@ -894,7 +932,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const granted = perm === 'granted';
       setBrowserNotificationsEnabled(granted);
       if (granted && notifications.length > 0) {
-        new Notification('DUS Kova Triyajı Bildirimleri Aktif', {
+        new Notification('Triyaj Bildirimleri Aktif', {
           body: `Bugün bekleyen ${notifications.length} adet triyaj göreviniz bulunmaktadır.`,
           icon: '/favicon.ico'
         });
@@ -927,6 +965,27 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     },
     [soundEnabled, browserNotificationsEnabled]
+  );
+
+  // Yardımcı: Bir branşta triyaj testi çözüldüğünde Konu_Matrisi (topicTaxonomy) FSRS R% ve D metriklerini canlı güncelle
+  const syncTaxonomyForBranchTest = useCallback(
+    (branchCode: string, percentage: number, bucket: 'GREEN' | 'YELLOW' | 'RED' | 'NONE') => {
+      setTopicTaxonomy(prev =>
+        prev.map(item => {
+          if (item.branchCode !== branchCode) return item;
+          const rDelta = bucket === 'GREEN' ? 3 : bucket === 'YELLOW' ? 0 : bucket === 'RED' ? -4 : 1;
+          const dDelta = bucket === 'GREEN' ? -0.2 : bucket === 'RED' ? 0.3 : 0;
+          const nextR = Math.max(40, Math.min(99, Math.round((item.fsrsRetrievabilityR * 0.75 + percentage * 0.25) + rDelta)));
+          const nextD = Number(Math.max(1, Math.min(10, item.fsrsDifficultyD + dDelta)).toFixed(1));
+          return {
+            ...item,
+            fsrsRetrievabilityR: nextR,
+            fsrsDifficultyD: nextD
+          };
+        })
+      );
+    },
+    []
   );
 
   // Topic CRUD
@@ -970,9 +1029,29 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [todayStr]
   );
 
-  const deleteTopic = useCallback((id: string) => {
-    setTopics(prev => prev.filter(t => t.id !== id));
-  }, []);
+  const deleteTopic = useCallback(
+    (id: string) => {
+      const targetTopic = topics.find(t => t.id === id);
+      setTopics(prev => prev.filter(t => t.id !== id));
+      setTriageLogs(prev => prev.filter(l => l.topicId !== id));
+      if (targetTopic?.topicCode) {
+        const removedTodayLogs = questionLogs.filter(
+          q => q.semanticCode === targetTopic.topicCode && q.date === todayStr
+        );
+        if (removedTodayLogs.length > 0) {
+          const removedQ = removedTodayLogs.reduce((acc, q) => acc + q.totalQuestions, 0);
+          const removedMin = removedTodayLogs.reduce((acc, q) => acc + q.durationMinutes, 0);
+          setDailyGoal(prev => ({
+            ...prev,
+            completedQuestions: Math.max(0, prev.completedQuestions - removedQ),
+            completedStudyMinutes: Math.max(0, prev.completedStudyMinutes - removedMin)
+          }));
+        }
+        setQuestionLogs(prev => prev.filter(q => q.semanticCode !== targetTopic.topicCode));
+      }
+    },
+    [topics, questionLogs, todayStr]
+  );
 
   /**
    * Tekrar_Takvimi (Sayfa 9 & 20): Sürükle-Bırak (Drag & Drop) ile Görev Erteleme / Taşıma
@@ -1012,7 +1091,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   /**
-   * Planlanmış Triyaj Görevini Sil (Ünite müfredatta korunur; takvim, kuyruk, triyaj raporu ve denetim kaydından görev kaldırılır)
+   * Planlanmış Triyaj Görevini Sil (Ünite müfredatta korunur; takvim, kuyruk, triyaj raporu, günlük soru logu ve denetim kaydından görev kaldırılır)
    */
   const clearTopicScheduledTask = useCallback(
     (topicId: string) => {
@@ -1045,9 +1124,21 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
 
-      // Takvimden silinen görevin Tekrar_Kaydi (triageLogs) ve otomatik soru kayıtlarını da temizle
+      // Takvimden silinen görevin Tekrar_Kaydi (triageLogs), soru kayıtları ve günlük hedef katkısını da temizle
       setTriageLogs(prev => prev.filter(l => l.topicId !== topicId));
       if (topic.topicCode) {
+        const removedTodayLogs = questionLogs.filter(
+          q => q.semanticCode === topic.topicCode && q.date === todayStr
+        );
+        if (removedTodayLogs.length > 0) {
+          const removedQ = removedTodayLogs.reduce((acc, q) => acc + q.totalQuestions, 0);
+          const removedMin = removedTodayLogs.reduce((acc, q) => acc + q.durationMinutes, 0);
+          setDailyGoal(prev => ({
+            ...prev,
+            completedQuestions: Math.max(0, prev.completedQuestions - removedQ),
+            completedStudyMinutes: Math.max(0, prev.completedStudyMinutes - removedMin)
+          }));
+        }
         setQuestionLogs(prev => prev.filter(q => q.semanticCode !== topic.topicCode));
       }
 
@@ -1056,7 +1147,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `${topic.title} ünitesi müfredatta korunarak takvim, kuyruk ve triyaj raporundaki görevi silindi.`
       );
     },
-    [topics, todayStr, notifyUser]
+    [topics, questionLogs, todayStr, notifyUser]
   );
 
   /**
@@ -1118,7 +1209,7 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   /**
    * Tekrar_Plani (Sayfa 6): Tablodan Doğrudan T+0 Tarihi ve T+3 Doğru (0-40) Hızlı Girişi
    * T+0 girildiğinde kova rengi 'NONE' kalır, T+3 tarihi (+3 gün) kilitlenir.
-   * T+3 doğru sayısı girildiğinde kova rengi belirlenir; Yeşil ise tüm gelecek tekrar tarihleri silinir (bir daha tekrar sırasına girmez).
+   * T+3 doğru sayısı girildiğinde kova rengi belirlenir; tüm sekmeler (Takvim, SWSPS, Soru Logu, Günlük Hedef, Rapor) anında güncellenir.
    */
   const inlineUpdateTopicPlan = useCallback(
     (topicId: string, t0Date?: string, t3Correct?: number) => {
@@ -1146,6 +1237,24 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           lastStudiedDate: t0Date,
           reviewCount: Math.max(1, topic.reviewCount || 0)
         });
+
+        if (t0Date === todayStr) {
+          setDailyGoal(prev => ({
+            ...prev,
+            completedQuestions: prev.completedQuestions + 20,
+            completedStudyMinutes: prev.completedStudyMinutes + 20
+          }));
+        }
+
+        appendAutoQuestionLog(
+          topic,
+          '1. Soru Bankası (Inline T+0 20 Soru Kalibrasyon)',
+          16,
+          20,
+          20,
+          'Tekrar_Plani tablosundan hızlı T+0 girişi',
+          t0Date
+        );
       }
 
       if (t3Correct !== undefined && !Number.isNaN(t3Correct)) {
@@ -1199,52 +1308,36 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         setTriageLogs(prev => [log, ...prev.filter(l => l.topicId !== topicId)]);
+
+        setDailyGoal(prev => ({
+          ...prev,
+          completedQuestions: prev.completedQuestions + 40,
+          completedStudyMinutes: prev.completedStudyMinutes + 35
+        }));
+
+        appendAutoQuestionLog(
+          topic,
+          '1. Soru Bankası (Inline T+3 Esas Kova Triyajı)',
+          clamped,
+          40,
+          35,
+          'Tekrar_Plani tablosundan hızlı T+3 girişi',
+          todayStr
+        );
+
+        syncTaxonomyForBranchTest(topic.subjectId, triageResult.percentage, triageResult.bucket);
       }
     },
-    [topics, subjects, todayStr, triageLogs, updateTopic, clearTopicScheduledTask]
-  );
-
-  /**
-   * Kovalara Hızlı Konu Ekleme / Kutu Değiştirme Yardımcısı
-   * Kullanıcının istediği konuyu tek tıkla T+0->T+3 akışına veya doğrudan Yeşil / Sarı / Kırmızı kutuya atamasını sağlar.
-   */
-  const assignTopicBucketDirectly = useCallback(
-    (
-      topicId: string,
-      targetState: 'T0_DONE' | 'GREEN' | 'YELLOW' | 'RED' | 'RESET',
-      customDate?: string
-    ) => {
-      const topic = topics.find(t => t.id === topicId);
-      if (!topic) return;
-
-      const baseDate = customDate || todayStr;
-
-      if (targetState === 'RESET') {
-        clearTopicScheduledTask(topicId);
-        return;
-      }
-
-      if (targetState === 'T0_DONE') {
-        recordT0Completion(topicId, 16, 20, 'T+0 Konu Çalışması + 20 Soru Kalibrasyon (Kova T+3 gününde belirlenecek)', baseDate);
-        return;
-      }
-
-      if (targetState === 'GREEN') {
-        recordT3Triage(topicId, 36, 40, 'T+3 ≥%85 Yeşil Kova (Taburcu — tekrar sırasına bir daha girmez)', baseDate);
-        return;
-      }
-
-      if (targetState === 'YELLOW') {
-        recordT3Triage(topicId, 31, 40, 'T+3 %70-%84 Sarı Kova (15 dk yama + T+14 2. Banka doğrulama)', baseDate);
-        return;
-      }
-
-      if (targetState === 'RED') {
-        recordT3Triage(topicId, 24, 40, 'T+3 <%70 Kırmızı Kova (Cumartesi Kova Onarım Bloğu: 25 dk Boş Kağıt + 30 Soru)', baseDate);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [topics, todayStr, clearTopicScheduledTask]
+    [
+      topics,
+      subjects,
+      todayStr,
+      triageLogs,
+      updateTopic,
+      clearTopicScheduledTask,
+      appendAutoQuestionLog,
+      syncTaxonomyForBranchTest
+    ]
   );
 
   // T+0 Kalibrasyon Tamamlama (20 Soru — İstatistik Kova Belirlemez! Sadece T+3'ü Kilitler)
@@ -1301,12 +1394,14 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveDate
       );
 
+      syncTaxonomyForBranchTest(topic.subjectId, cal.percentage, 'NONE');
+
       notifyUser(
         'T+0 Kalibrasyonu Kaydedildi (Kova T+3\'te Belirlenecek)',
         `${topic.title}: ${cal.total} soruluk ilk kalibrasyon tamamlandı. Kova ayrımı 3 gün sonra (${cal.nextScheduledDate}) çözülecek T+3 esas testinde yapılacaktır.`
       );
     },
-    [topics, todayStr, updateTopic, appendAutoQuestionLog, notifyUser]
+    [topics, todayStr, updateTopic, appendAutoQuestionLog, syncTaxonomyForBranchTest, notifyUser]
   );
 
   // T+3 Esas Triyaj Kaydı (Kova Rengini Belirleyen Ana Karar Noktası)
@@ -1393,6 +1488,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveDate
       );
 
+      syncTaxonomyForBranchTest(topic.subjectId, triageResult.percentage, triageResult.bucket);
+
       const bucketLabel =
         triageResult.bucket === 'GREEN'
           ? '🟢 Yeşil Kova (Taburcu — Tekrar Sırasına Bir Daha Girmez)'
@@ -1404,7 +1501,16 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `${topic.title}: %${triageResult.percentage} başarı (${triageResult.correct}/${triageResult.total}). ${triageResult.recommendedAction}`
       );
     },
-    [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
+    [
+      topics,
+      subjects,
+      todayStr,
+      triageLogs,
+      updateTopic,
+      appendAutoQuestionLog,
+      syncTaxonomyForBranchTest,
+      notifyUser
+    ]
   );
 
   // Sarı Kova T+14 Doğrulama Kaydı
@@ -1490,6 +1596,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveDate
       );
 
+      syncTaxonomyForBranchTest(topic.subjectId, triageResult.percentage, triageResult.bucket);
+
       notifyUser(
         `T+14 Doğrulama: ${
           triageResult.bucket === 'GREEN'
@@ -1501,7 +1609,16 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `${topic.title}: ${triageResult.recommendedAction}`
       );
     },
-    [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
+    [
+      topics,
+      subjects,
+      todayStr,
+      triageLogs,
+      updateTopic,
+      appendAutoQuestionLog,
+      syncTaxonomyForBranchTest,
+      notifyUser
+    ]
   );
 
   // Kırmızı Kova Cumartesi Onarım Kaydı (25 dk Boş Kağıt + 2. Bankadan 30 Soru -> ≥%80 ise Sarı Kova T+14 3. Banka)
@@ -1584,6 +1701,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveDate
       );
 
+      syncTaxonomyForBranchTest(topic.subjectId, triageResult.percentage, triageResult.bucket);
+
       notifyUser(
         `Cumartesi Onarım Sonucu: ${
           triageResult.bucket === 'YELLOW'
@@ -1593,7 +1712,16 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `${topic.title}: ${triageResult.recommendedAction}`
       );
     },
-    [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
+    [
+      topics,
+      subjects,
+      todayStr,
+      triageLogs,
+      updateTopic,
+      appendAutoQuestionLog,
+      syncTaxonomyForBranchTest,
+      notifyUser
+    ]
   );
 
   // Deneme Yanlışı T+3 (15 Soruluk) Doğrulama Testi Kaydı (PDF Madde 7.3)
@@ -1669,6 +1797,8 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveDate
       );
 
+      syncTaxonomyForBranchTest(topic.subjectId, triageResult.percentage, triageResult.bucket);
+
       notifyUser(
         `Deneme Yanlışı T+3 Doğrulama: ${
           triageResult.bucket === 'GREEN'
@@ -1678,7 +1808,81 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `${topic.title}: ${triageResult.recommendedAction}`
       );
     },
-    [topics, subjects, todayStr, triageLogs, updateTopic, appendAutoQuestionLog, notifyUser]
+    [
+      topics,
+      subjects,
+      todayStr,
+      triageLogs,
+      updateTopic,
+      appendAutoQuestionLog,
+      syncTaxonomyForBranchTest,
+      notifyUser
+    ]
+  );
+
+  /**
+   * Kovalara Hızlı Konu Ekleme / Kutu Değiştirme Yardımcısı
+   */
+  const assignTopicBucketDirectly = useCallback(
+    (
+      topicId: string,
+      targetState: 'T0_DONE' | 'GREEN' | 'YELLOW' | 'RED' | 'RESET',
+      customDate?: string
+    ) => {
+      const topic = topics.find(t => t.id === topicId);
+      if (!topic) return;
+
+      const baseDate = customDate || todayStr;
+
+      if (targetState === 'RESET') {
+        clearTopicScheduledTask(topicId);
+        return;
+      }
+
+      if (targetState === 'T0_DONE') {
+        recordT0Completion(
+          topicId,
+          16,
+          20,
+          'T+0 Konu Çalışması + 20 Soru Kalibrasyon (Kova T+3 gününde belirlenecek)',
+          baseDate
+        );
+        return;
+      }
+
+      if (targetState === 'GREEN') {
+        recordT3Triage(
+          topicId,
+          36,
+          40,
+          'T+3 ≥%85 Yeşil Kova (Taburcu — tekrar sırasına bir daha girmez)',
+          baseDate
+        );
+        return;
+      }
+
+      if (targetState === 'YELLOW') {
+        recordT3Triage(
+          topicId,
+          31,
+          40,
+          'T+3 %70-%84 Sarı Kova (15 dk yama + T+14 2. Banka doğrulama)',
+          baseDate
+        );
+        return;
+      }
+
+      if (targetState === 'RED') {
+        recordT3Triage(
+          topicId,
+          24,
+          40,
+          'T+3 <%70 Kırmızı Kova (Cumartesi Kova Onarım Bloğu: 25 dk Boş Kağıt + 30 Soru)',
+          baseDate
+        );
+      }
+    },
+    [topics, todayStr, clearTopicScheduledTask, recordT0Completion, recordT3Triage]
   );
 
   // Deneme_Analiz CRUD
@@ -1933,11 +2137,47 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateAnkiSnapshot = useCallback((updates: Partial<AnkiFsrsSnapshot>) => {
     setAnkiSnapshot(prev => ({ ...prev, ...updates }));
+    if (typeof updates.targetRetentionPercent === 'number') {
+      setSystemParams(prev => ({
+        ...prev,
+        targetFsrsRetention: updates.targetRetentionPercent!
+      }));
+    }
   }, []);
 
-  const updateSystemParams = useCallback((updates: Partial<SystemParameters>) => {
-    setSystemParams(prev => ({ ...prev, ...updates }));
-  }, []);
+  const updateSystemParams = useCallback(
+    (updates: Partial<SystemParameters>) => {
+      setSystemParams(prev => {
+        const nextParams = { ...prev, ...updates };
+        if (
+          updates.targetTotalNet !== undefined ||
+          updates.adccEliteThreshold !== undefined
+        ) {
+          setMockExams(currentExams =>
+            currentExams.map(exam =>
+              evaluateMockExam(
+                exam.id,
+                exam.date,
+                exam.institution,
+                exam.branchNets,
+                nextParams.targetTotalNet,
+                nextParams.adccEliteThreshold,
+                exam.notes
+              )
+            )
+          );
+        }
+        if (typeof updates.targetFsrsRetention === 'number') {
+          setAnkiSnapshot(currentAnki => ({
+            ...currentAnki,
+            targetRetentionPercent: updates.targetFsrsRetention!
+          }));
+        }
+        return nextParams;
+      });
+    },
+    []
+  );
 
   // Daily Goal Helpers
   const updateDailyGoal = useCallback((updates: Partial<DailyGoal>) => {
@@ -2060,6 +2300,17 @@ export const DUSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [notifyUser]);
 
   const value: DUSContextType = {
+    activeTab,
+    setActiveTab,
+    focusedSubjectId,
+    setFocusedSubjectId,
+    analyticsSubTab,
+    setAnalyticsSubTab,
+    calendarSubTab,
+    setCalendarSubTab,
+    navigateToSubject,
+    navigateToAnalytics,
+    navigateToCalendar,
     subjects,
     topics,
     dailyGoal,
@@ -2129,3 +2380,4 @@ export const useDUS = () => {
   }
   return context;
 };
+

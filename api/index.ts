@@ -601,7 +601,7 @@ async function fetchAllTickTickFocusRecords(
 
 export function createApiApp(): express.Express {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '5mb' }));
 
   // 1. TickTick OAuth 2.0 Authorization URL Endpoint
   app.get('/api/auth/ticktick/url', (req, res) => {
