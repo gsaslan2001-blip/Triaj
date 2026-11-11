@@ -100,27 +100,61 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Üst Komuta Satırı: Marka Kimliği — Ana Sekmeler — Aksiyon & Araç Çubuğu */}
         <div className="flex items-center justify-between gap-3 h-15">
-          {/* Sol: Marka & Aday Kimliği */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center font-mono font-bold tracking-tight shrink-0">
-              <span className="text-xs text-emerald-400">DUS</span>
+          {/* Sol: Marka, Triyaj Logosu & Proje Açıklaması */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('planner')}
+            className="flex items-center gap-2.5 shrink-0 text-left group focus:outline-hidden"
+            aria-label="Triyaj Ana Sayfa"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 via-indigo-500/15 to-rose-500/20 border border-emerald-500/35 group-hover:border-emerald-400/60 flex items-center justify-center shrink-0 shadow-2xs transition-colors">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="w-5 h-5"
+                aria-hidden="true"
+              >
+                {/* Üst Yeşil Kova Katmanı */}
+                <path
+                  d="M12 3L20 7.5L12 12L4 7.5L12 3Z"
+                  fill="#10B981"
+                  fillOpacity="0.28"
+                  stroke="#34D399"
+                  strokeWidth="1.75"
+                  strokeLinejoin="round"
+                />
+                {/* Orta Sarı Kova Katmanı */}
+                <path
+                  d="M4 12L12 16.5L20 12"
+                  stroke="#FBBF24"
+                  strokeWidth="1.85"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {/* Alt Kırmızı Kova Katmanı */}
+                <path
+                  d="M4 16.5L12 21L20 16.5"
+                  stroke="#FB7185"
+                  strokeWidth="1.85"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-bold text-white tracking-tight whitespace-nowrap">
-                  DUS 2027 Komuta
+                <h1 className="text-base font-extrabold text-white tracking-tight whitespace-nowrap">
+                  Triyaj
                 </h1>
-                <span className="text-[11px] font-mono text-emerald-400 font-semibold whitespace-nowrap">
-                  108 Net
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono text-emerald-400 font-semibold whitespace-nowrap">
+                  DUS · {daysLeft}G
                 </span>
               </div>
               <div className="text-[11px] text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
-                <span>{systemParams.ownerName}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono text-slate-300 tabular-nums">{daysLeft} Gün</span>
+                <span>Bilişsel Kova &amp; Çalışma Sistemi</span>
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Orta: Ana Navigasyon Sekmeleri (Masaüstü) */}
           <nav

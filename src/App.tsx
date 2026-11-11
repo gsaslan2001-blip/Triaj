@@ -113,9 +113,9 @@ const AppContent: React.FC = () => {
       <footer className="bg-white border-t border-slate-200 py-4 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700">DUS 2027 Stratejik Yönetim Sistemi</span>
+            <span className="font-semibold text-slate-700">Triyaj</span>
             <span aria-hidden="true">·</span>
-            <span>Ebbinghaus Kova Triyajı, SWSPS Bilişsel Ceza Motoru &amp; FSRS</span>
+            <span>Bilişsel Kova Triyajı, SWSPS Ceza Motoru &amp; FSRS Çalışma Sistemi</span>
           </div>
           <div>
             Bjork (1992), Roediger &amp; Karpicke (2006), Dunlosky (2013) ve Excel-to-App Mimari Kılavuzu
