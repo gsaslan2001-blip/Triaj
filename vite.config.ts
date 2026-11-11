@@ -32,8 +32,11 @@ export default defineConfig(() => {
     plugins: [silenceViteClientWebSocket(), react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
+    },
+    build: {
+      chunkSizeWarningLimit: 800,
     },
     server: {
       hmr: false,
